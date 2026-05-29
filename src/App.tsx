@@ -1,6 +1,6 @@
-import { CardsDashboard } from "./components/dashboard/CardsDashboard";
-import { dashboardData } from "./data/dashboardData";
+import { Dashboard } from "./dashboard/Dashboard";
+import { dashboardData } from "./dashboard/data";
 
 export default function App() {
-  return <CardsDashboard data={dashboardData} />;
+  return <Dashboard data={dashboardData} />;
 }

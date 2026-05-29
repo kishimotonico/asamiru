@@ -53,7 +53,7 @@ export type DashboardData = {
   };
 };
 
-type ForecastDay = {
+export type ForecastDay = {
   label: string;
   icon: WeatherIconKind;
   high: number;
@@ -62,7 +62,7 @@ type ForecastDay = {
   weekday: string;
 };
 
-type ScheduleEvent = {
+export type ScheduleEvent = {
   date?: string;
   when?: string;
   time?: string;

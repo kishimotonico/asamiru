@@ -1,5 +1,5 @@
 import type { SVGProps } from "react";
-import type { WeatherIconKind } from "../../types/dashboard";
+import type { WeatherIconKind } from "./types";
 
 type WeatherIconProps = {
   kind: WeatherIconKind;
