@@ -17,7 +17,7 @@ export type DashboardState = {
 };
 
 const WEATHER_INTERVAL_MS = 10 * 60 * 1000;
-const TRAINS_INTERVAL_MS = 60 * 1000;
+const TRAINS_INTERVAL_MS = 90 * 1000;
 
 export function useDashboardData(): DashboardState {
   const weather = usePolling(fetchWeather, WEATHER_INTERVAL_MS);

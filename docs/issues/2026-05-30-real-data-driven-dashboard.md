@@ -151,3 +151,19 @@ opentidkeio から次発列車を計算する（`docs/keio-train-status-fetch.md
 - `pnpm exec vite --host 127.0.0.1 --port 5173` で起動し、agent-browser で実画面を確認。
 - Open-Meteo と opentidkeio へのブラウザ直 fetch が発生し、天気・交通が実データで表示されることを確認。
 - 交通カードは `調布` 駅設定で上り/下りの2方面にまとまって表示されることを確認。
+
+2026-05-30 Codex 追記:
+
+- 交通情報がエラーになるケースと初回 `dia/{trainId}.json` のリクエスト数が多い問題を修正。
+- `traffic_info.json` の位置 ID と乗車駅の駅順を使い、乗車駅にこれから到達する列車だけを `dia` 取得候補にするよう変更。
+- 各方面で表示本数（3本）が揃った時点で `dia` 取得を打ち切るよう変更。
+- `traffic_info.json` の TTL / ポーリング間隔を 90秒へ延長。`dia` は 12時間キャッシュ。
+- React StrictMode の effect 再実行で Open-Meteo が重複しないよう、天気にも TTL キャッシュと in-flight キャッシュを追加。
+- 個別 `dia` 取得失敗は、その列車だけ除外する。全候補が失敗した場合のみ交通カード全体をエラーにする。
+
+確認:
+
+- `pnpm build`
+- `asa` の stale registration には触らず、別名 `asa-check.localhost:1355` で agent-browser 確認。
+- `調布` 駅設定で交通カードがエラーにならず、上り/下り各3本を表示。
+- 初回外部 API リクエストは Open-Meteo 1件、`traffic_info.json` 1件、`dia` 6件の計8件まで低減したことを確認。

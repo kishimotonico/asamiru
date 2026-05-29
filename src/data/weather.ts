@@ -20,8 +20,22 @@ const WEATHER_ENDPOINT = "https://api.open-meteo.com/v1/forecast";
 const DEFAULT_LAT = 35.6895;
 const DEFAULT_LON = 139.6917;
 const HOURLY_HOURS = new Set([6, 9, 12, 15, 18, 21]);
+const WEATHER_TTL_MS = 10 * 60 * 1000;
+
+let weatherCache: { value: DashboardData["weather"]; expiresAt: number } | undefined;
+let weatherInflight: Promise<DashboardData["weather"]> | undefined;
 
 export async function fetchWeather(): Promise<DashboardData["weather"]> {
+  const cached = weatherCache;
+  const now = Date.now();
+  if (cached && cached.expiresAt > now) {
+    return cached.value;
+  }
+
+  if (weatherInflight) {
+    return weatherInflight;
+  }
+
   const lat = readNumberEnv(import.meta.env.VITE_WEATHER_LAT, DEFAULT_LAT);
   const lon = readNumberEnv(import.meta.env.VITE_WEATHER_LON, DEFAULT_LON);
   const url = new URL(WEATHER_ENDPOINT);
@@ -32,13 +46,22 @@ export async function fetchWeather(): Promise<DashboardData["weather"]> {
   url.searchParams.set("hourly", "temperature_2m,precipitation_probability,weather_code");
   url.searchParams.set("daily", "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max");
 
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Open-Meteo returned ${response.status}`);
-  }
+  weatherInflight = fetch(url)
+    .then(async (response) => {
+      if (!response.ok) {
+        throw new Error(`Open-Meteo returned ${response.status}`);
+      }
 
-  const raw = (await response.json()) as OpenMeteoResponse;
-  return normalizeWeather(raw);
+      const raw = (await response.json()) as OpenMeteoResponse;
+      const value = normalizeWeather(raw);
+      weatherCache = { value, expiresAt: Date.now() + WEATHER_TTL_MS };
+      return value;
+    })
+    .finally(() => {
+      weatherInflight = undefined;
+    });
+
+  return weatherInflight;
 }
 
 function normalizeWeather(raw: OpenMeteoResponse): DashboardData["weather"] {

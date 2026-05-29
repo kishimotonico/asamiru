@@ -6,6 +6,7 @@ type TrafficResponse = {
 };
 
 type TrafficPosition = {
+  id?: string;
   sn?: string;
   ps?: TrainPosition[];
 };
@@ -39,12 +40,76 @@ type TrainCandidate = {
   delay: number;
 };
 
+type PositionedTrain = {
+  train: TrainPosition;
+  trainId: string;
+  positionOrder: number;
+  distanceToStation: number;
+};
+
 const TRAFFIC_URL = "https://i.opentidkeio.jp/data/traffic_info.json";
 const DIA_URL_BASE = "https://i.opentidkeio.jp/dia/";
-const TRAFFIC_TTL_MS = 60 * 1000;
-const DIA_TTL_MS = 6 * 60 * 60 * 1000;
+const TRAFFIC_TTL_MS = 90 * 1000;
+const DIA_TTL_MS = 12 * 60 * 60 * 1000;
 const DISPLAY_LIMIT_PER_DIRECTION = 3;
+const PREFETCH_LIMIT_PER_DIRECTION = 6;
 const TARGET_LINES = new Set(["K", "S"]);
+const STATION_ORDER_BY_NAME: ReadonlyMap<string, number> = new Map(
+  [
+    ["新宿", 1],
+    ["笹塚", 2],
+    ["代田橋", 3],
+    ["明大前", 4],
+    ["下高井戸", 5],
+    ["桜上水", 6],
+    ["上北沢", 7],
+    ["八幡山", 8],
+    ["芦花公園", 9],
+    ["千歳烏山", 10],
+    ["仙川", 11],
+    ["つつじヶ丘", 12],
+    ["柴崎", 13],
+    ["国領", 14],
+    ["布田", 15],
+    ["調布", 16],
+    ["西調布", 17],
+    ["飛田給", 18],
+    ["武蔵野台", 19],
+    ["多磨霊園", 20],
+    ["東府中", 21],
+    ["府中", 22],
+    ["分倍河原", 23],
+    ["中河原", 24],
+    ["聖蹟桜ヶ丘", 25],
+    ["百草園", 26],
+    ["高幡不動", 27],
+    ["南平", 28],
+    ["平山城址公園", 29],
+    ["長沼", 30],
+    ["北野", 31],
+    ["京王八王子", 32],
+    ["新線新宿", 33],
+    ["初台", 34],
+    ["幡ヶ谷", 35],
+    ["京王片倉", 38],
+    ["山田", 39],
+    ["めじろ台", 40],
+    ["狭間", 41],
+    ["高尾", 42],
+    ["高尾山口", 43],
+    ["京王多摩川", 44],
+    ["京王稲田堤", 45],
+    ["京王よみうりランド", 46],
+    ["稲城", 47],
+    ["若葉台", 48],
+    ["京王永山", 49],
+    ["京王多摩センター", 50],
+    ["京王堀之内", 51],
+    ["南大沢", 52],
+    ["多摩境", 53],
+    ["橋本", 54],
+  ] as const,
+);
 
 const diaCache = new Map<string, { value: DiaResponse; expiresAt: number }>();
 const diaInflight = new Map<string, Promise<DiaResponse>>();
@@ -58,26 +123,21 @@ export async function fetchTrains(now = new Date()): Promise<DashboardData["trai
     throw new Error("VITE_KEIO_BOARDING_STATION is required");
   }
 
+  const boardingOrder = stationOrder(boardingStation);
   const traffic = await fetchTraffic();
-  const positions = [...(traffic.TS ?? []), ...(traffic.TB ?? [])];
+  const positionedTrains = collectUpcomingTrains(traffic, boardingOrder, directionFilter);
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const candidates: TrainCandidate[] = [];
+  const validCounts = new Map<string, number>();
+  const failures: string[] = [];
 
-  for (const position of positions) {
-    if (!position.sn || !TARGET_LINES.has(position.sn)) {
+  for (const { train, trainId } of positionedTrains) {
+    const direction = directionKey(train.ki, "");
+    if ((validCounts.get(direction) ?? 0) >= DISPLAY_LIMIT_PER_DIRECTION) {
       continue;
     }
 
-    for (const train of position.ps ?? []) {
-      const trainId = train.tr?.trim();
-      if (!trainId) {
-        continue;
-      }
-
-      if (directionFilter !== "both" && train.ki !== directionFilter) {
-        continue;
-      }
-
+    try {
       const dia = await fetchDia(trainId);
       const stop = dia.dy?.find((item) => item.sn === boardingStation);
       if (!stop?.ht) {
@@ -94,14 +154,21 @@ export async function fetchTrains(now = new Date()): Promise<DashboardData["trai
       const dest = destinationFromDia(dia) ?? destinationLabel(train.ik_tr || train.ik);
       candidates.push({
         trainId,
-        direction: directionKey(train.ki, dest),
+        direction,
         kind: serviceLabel(train.sy_tr || train.sy),
         dest,
         scheduledMinutes,
         estimatedMinutes,
         delay,
       });
+      validCounts.set(direction, (validCounts.get(direction) ?? 0) + 1);
+    } catch (error) {
+      failures.push(`${trainId}: ${errorMessage(error)}`);
     }
+  }
+
+  if (candidates.length === 0 && failures.length > 0) {
+    throw new Error(`列車時刻表の取得に失敗しました: ${failures.slice(0, 3).join(", ")}`);
   }
 
   return {
@@ -109,6 +176,48 @@ export async function fetchTrains(now = new Date()): Promise<DashboardData["trai
     departures: groupDepartures(candidates),
     lines: [],
   };
+}
+
+function collectUpcomingTrains(
+  traffic: TrafficResponse,
+  boardingOrder: number,
+  directionFilter: "0" | "1" | "both",
+): PositionedTrain[] {
+  const byDirection = new Map<string, PositionedTrain[]>();
+
+  for (const position of [...(traffic.TS ?? []), ...(traffic.TB ?? [])]) {
+    if (!position.sn || !TARGET_LINES.has(position.sn)) {
+      continue;
+    }
+
+    const positionOrder = parsePositionOrder(position.id);
+    if (positionOrder === undefined) {
+      continue;
+    }
+
+    for (const train of position.ps ?? []) {
+      const trainId = train.tr?.trim();
+      if (!trainId || (directionFilter !== "both" && train.ki !== directionFilter)) {
+        continue;
+      }
+
+      const distanceToStation = distanceBeforeBoarding(positionOrder, boardingOrder, train.ki);
+      if (distanceToStation === undefined) {
+        continue;
+      }
+
+      const direction = train.ki ?? "unknown";
+      const group = byDirection.get(direction) ?? [];
+      group.push({ train, trainId, positionOrder, distanceToStation });
+      byDirection.set(direction, group);
+    }
+  }
+
+  return [...byDirection.values()].flatMap((group) =>
+    group
+      .sort((a, b) => a.distanceToStation - b.distanceToStation || a.trainId.localeCompare(b.trainId))
+      .slice(0, PREFETCH_LIMIT_PER_DIRECTION),
+  );
 }
 
 async function fetchTraffic(): Promise<TrafficResponse> {
@@ -222,6 +331,32 @@ function parseDelay(delay: string | undefined): number {
   return Math.max(0, parsed);
 }
 
+function parsePositionOrder(id: string | undefined): number | undefined {
+  const match = /^[A-Z](\d{3})$/.exec(id ?? "");
+  if (!match) {
+    return undefined;
+  }
+  return Number(match[1]);
+}
+
+function distanceBeforeBoarding(positionOrder: number, boardingOrder: number, direction: string | undefined): number | undefined {
+  if (direction === "1") {
+    return positionOrder <= boardingOrder ? boardingOrder - positionOrder : undefined;
+  }
+  if (direction === "0") {
+    return positionOrder >= boardingOrder ? positionOrder - boardingOrder : undefined;
+  }
+  return undefined;
+}
+
+function stationOrder(stationName: string): number {
+  const order = STATION_ORDER_BY_NAME.get(stationName);
+  if (order === undefined) {
+    throw new Error(`Unsupported KEIO boarding station: ${stationName}`);
+  }
+  return order;
+}
+
 function formatMinutes(minutes: number): string {
   const normalized = ((minutes % (24 * 60)) + 24 * 60) % (24 * 60);
   const hours = Math.floor(normalized / 60);
@@ -312,4 +447,11 @@ function destinationLabel(code: string | undefined): string {
     default:
       return code ? `行先${code}` : "不明";
   }
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return "Unknown error";
 }
