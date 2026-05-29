@@ -1,18 +1,36 @@
 import type { DashboardData } from "./types";
 import { DashboardCard } from "./DashboardCard";
-import { StatusDot } from "./StatusDot";
 
 export function TrainsCard({
   data,
+  error,
+  loading = false,
   className,
 }: {
-  data: DashboardData["trains"];
+  data?: DashboardData["trains"];
+  error?: string;
+  loading?: boolean;
   className?: string;
 }) {
+  if (error) {
+    return <TrainsStatusCard className={className} title="取得失敗" detail={error} />;
+  }
+
+  if (loading || !data) {
+    return <TrainsStatusCard className={className} title="取得中" detail="列車情報を読み込んでいます" />;
+  }
+
+  const departureEntries = Object.entries(data.departures);
+
   return (
     <DashboardCard label="交通" kicker={`${data.station} 駅`} className={className}>
       <div className="grid gap-6 sm:grid-cols-2">
-        {Object.entries(data.departures).map(([direction, departures]) => (
+        {departureEntries.length === 0 ? (
+          <div className="rounded-lg bg-[#f6f5ef] p-5 text-[#9aa0aa] sm:col-span-2">
+            現在表示できる発車情報がありません
+          </div>
+        ) : null}
+        {departureEntries.map(([direction, departures]) => (
           <div key={direction} className="min-w-0">
             <div className="mb-2 flex items-center gap-2 border-b border-[#e8e6df] pb-2.5 text-[13px] tracking-[0.14em] text-[#9aa0aa]">
               <span aria-hidden="true" className="h-3.5 w-1 rounded-sm bg-[var(--accent)]" />
@@ -51,29 +69,17 @@ export function TrainsCard({
           </div>
         ))}
       </div>
+    </DashboardCard>
+  );
+}
 
-      <div className="mt-auto pt-6">
-        <div className="mb-3 border-t border-[#e8e6df] pt-5 text-[13px] tracking-[0.16em] text-[#9aa0aa]">運行状況</div>
-        <div className="grid gap-2.5">
-          {data.lines.map((line) => (
-            <div
-              key={line.name}
-              className={`flex min-w-0 items-center gap-2.5 rounded-lg px-3.5 py-2.5 ${
-                line.level === "warn" ? "bg-[#fbece8]" : "bg-[#f6f5ef]"
-              }`}
-            >
-              <StatusDot level={line.level} />
-              <span className="shrink-0 text-[15px] font-semibold">{line.name}</span>
-              <span
-                className={`ml-auto truncate text-right text-[13px] ${
-                  line.level === "warn" ? "font-semibold text-[#c14b3a]" : "text-[#5a5f69]"
-                }`}
-              >
-                {line.status}
-                {line.note ? <span className="font-normal text-[#9aa0aa]"> · {line.note}</span> : null}
-              </span>
-            </div>
-          ))}
+function TrainsStatusCard({ className, title, detail }: { className?: string; title: string; detail: string }) {
+  return (
+    <DashboardCard label="交通" kicker="京王線" className={className}>
+      <div className="grid min-h-64 place-items-center rounded-lg bg-[#f6f5ef] p-6 text-center">
+        <div>
+          <div className="text-2xl font-semibold text-[#1f2024]">{title}</div>
+          <div className="mt-2 text-sm text-[#9aa0aa]">{detail}</div>
         </div>
       </div>
     </DashboardCard>

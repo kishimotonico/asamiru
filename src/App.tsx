@@ -1,8 +1,10 @@
 import { Dashboard } from "./dashboard/Dashboard";
-import { dashboardData } from "./dashboard/data";
+import { useDashboardData } from "./dashboard/useDashboardData";
 import { DebugOverlay } from "./debug/DebugOverlay";
 
 export default function App() {
+  const dashboardData = useDashboardData();
+
   return (
     <>
       <Dashboard data={dashboardData} />

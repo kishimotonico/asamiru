@@ -4,11 +4,23 @@ import { WeatherIcon } from "./WeatherIcon";
 
 export function WeatherCard({
   data,
+  error,
+  loading = false,
   className,
 }: {
-  data: DashboardData["weather"];
+  data?: DashboardData["weather"];
+  error?: string;
+  loading?: boolean;
   className?: string;
 }) {
+  if (error) {
+    return <WeatherStatusCard className={className} title="取得失敗" detail={error} />;
+  }
+
+  if (loading || !data) {
+    return <WeatherStatusCard className={className} title="取得中" detail="天気データを読み込んでいます" />;
+  }
+
   const today = data.today;
 
   return (
@@ -81,6 +93,19 @@ export function WeatherCard({
             </div>
           </div>
         ))}
+      </div>
+    </DashboardCard>
+  );
+}
+
+function WeatherStatusCard({ className, title, detail }: { className?: string; title: string; detail: string }) {
+  return (
+    <DashboardCard label="天気" kicker="東京" className={className}>
+      <div className="grid min-h-64 place-items-center rounded-lg bg-[#f6f5ef] p-6 text-center">
+        <div>
+          <div className="text-2xl font-semibold text-[#1f2024]">{title}</div>
+          <div className="mt-2 text-sm text-[#9aa0aa]">{detail}</div>
+        </div>
       </div>
     </DashboardCard>
   );

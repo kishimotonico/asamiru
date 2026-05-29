@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import type { DashboardData } from "./types";
+import type { DashboardState } from "./useDashboardData";
 import { ClockCard } from "./ClockCard";
 import { WeatherCard } from "./WeatherCard";
 import { TrainsCard } from "./TrainsCard";
@@ -8,7 +8,7 @@ import { ScheduleCard } from "./ScheduleCard";
 type AccentStyle = CSSProperties & { "--accent": string };
 
 type DashboardProps = {
-  data: DashboardData;
+  data: DashboardState;
   accent?: string;
 };
 
@@ -19,10 +19,15 @@ export function Dashboard({ data, accent = "#3a6b8a" }: DashboardProps) {
       style={{ "--accent": accent } as AccentStyle}
     >
       <div className="mx-auto grid max-w-[1800px] gap-4 sm:gap-5 lg:grid-cols-2 lg:items-start xl:gap-6 2xl:min-h-[calc(100vh-7rem)] 2xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)_minmax(0,7fr)] 2xl:grid-rows-[auto_1fr] 2xl:items-stretch">
-        <ClockCard data={data.now} className="2xl:col-span-2" />
-        <TrainsCard data={data.trains} className="2xl:row-span-2" />
+        <ClockCard className="2xl:col-span-2" />
+        <TrainsCard
+          data={data.trains.data}
+          error={data.trains.error}
+          loading={data.trains.loading}
+          className="2xl:row-span-2"
+        />
         <ScheduleCard data={data.schedule} />
-        <WeatherCard data={data.weather} />
+        <WeatherCard data={data.weather.data} error={data.weather.error} loading={data.weather.loading} />
       </div>
     </main>
   );

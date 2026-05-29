@@ -1,23 +1,27 @@
-import type { DashboardData } from "./types";
+import { useEffect, useState } from "react";
 import { DashboardCard } from "./DashboardCard";
 
 type ClockCardProps = {
-  data: DashboardData["now"];
   className?: string;
   showSeconds?: boolean;
 };
 
-function splitTime(time: string) {
-  const [hours = "00", minutes = "00", seconds = "00"] = time.split(":");
-  return {
-    hoursMinutes: `${hours}:${minutes}`,
-    seconds,
-  };
-}
+const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
-export function ClockCard({ data, className, showSeconds = true }: ClockCardProps) {
-  const dateText = `${data.date.y} / ${data.date.m} / ${data.date.d} （${data.date.weekday}）`;
-  const { hoursMinutes, seconds } = splitTime(data.time);
+export function ClockCard({ className, showSeconds = true }: ClockCardProps) {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  const dateText = `${now.getFullYear()} / ${now.getMonth() + 1} / ${now.getDate()} （${WEEKDAYS[now.getDay()]}）`;
+  const hoursMinutes = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const seconds = String(now.getSeconds()).padStart(2, "0");
 
   return (
     <DashboardCard className={`justify-between lg:self-start 2xl:self-stretch${className ? ` ${className}` : ""}`}>
@@ -25,12 +29,6 @@ export function ClockCard({ data, className, showSeconds = true }: ClockCardProp
         <div className="shrink-0 text-2xl font-medium tracking-normal text-[#5a5f69] sm:text-3xl lg:text-4xl">
           {dateText}
         </div>
-        {data.holiday ? (
-          <div className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#fbece8] px-3 py-1.5 text-[13px] tracking-[0.04em] text-[#c14b3a] sm:text-sm">
-            <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#c14b3a]" />
-            祝日 · {data.holiday}
-          </div>
-        ) : null}
       </div>
 
       <div className="mt-5 flex items-baseline font-mono leading-none tracking-normal text-[#1f2024]">
