@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <title>asamiru — 朝の情報ダッシュボード</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=Noto+Serif+JP:wght@300;400;500;600&family=JetBrains+Mono:wght@200;300;400;500&display=swap" />
+
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #000;
+      overflow: hidden;
+      font-family: "Noto Sans JP", system-ui, sans-serif;
+    }
+    /* Full-viewport stage; the 1920x1080 board is scaled + letterboxed inside it. */
+    #stage {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+    }
+    #board-scaler {
+      width: 1920px;
+      height: 1080px;
+      transform-origin: center center;
+      flex-shrink: 0;
+    }
+    .cards section { min-width: 0; }
+  </style>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script src="shared/data.js"></script>
+  <script type="text/babel" src="shared/icons.jsx"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script type="text/babel" src="variants/cards.jsx"></script>
+</head>
+<body>
+  <div id="stage">
+    <div id="board-scaler">
+      <div id="root"></div>
+    </div>
+  </div>
+
+  <script type="text/babel" data-presets="env,react">
+    const { useState, useEffect } = React;
+
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "density":     "regular",
+      "cardsAccent": "#3a6b8a"
+    }/*EDITMODE-END*/;
+
+    // Scale the fixed 1920x1080 board to fit any viewport (contain / letterbox).
+    function useFitScale() {
+      useEffect(() => {
+        const el = document.getElementById("board-scaler");
+        const fit = () => {
+          const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+          el.style.transform = `scale(${s})`;
+        };
+        fit();
+        window.addEventListener("resize", fit);
+        return () => window.removeEventListener("resize", fit);
+      }, []);
+    }
+
+    function App() {
+      const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+      useFitScale();
+
+      return (
+        <>
+          <CardsDashboard
+            data={window.DASHBOARD_DATA}
+            density={t.density}
+            accent={t.cardsAccent}
+          />
+
+          <TweaksPanel title="Tweaks">
+            <TweakSection label="情報密度" />
+            <TweakRadio
+              label="密度"
+              value={t.density}
+              options={["compact", "regular", "comfy"]}
+              onChange={(v) => setTweak("density", v)}
+            />
+
+            <TweakSection label="アクセントカラー" />
+            <TweakColor
+              label="カラー"
+              value={t.cardsAccent}
+              options={["#3a6b8a", "#b0422d", "#7c5a3a", "#5d7a4a", "#6a4f8a", "#1f2024"]}
+              onChange={(v) => setTweak("cardsAccent", v)}
+            />
+          </TweaksPanel>
+        </>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
