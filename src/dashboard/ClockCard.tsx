@@ -1,12 +1,12 @@
 import type { DashboardData } from "./types";
 import { DashboardCard } from "./DashboardCard";
 
-export function ClockCard({ data }: { data: DashboardData["now"] }) {
+export function ClockCard({ data, className }: { data: DashboardData["now"]; className?: string }) {
   const paddedMonth = String(data.date.m).padStart(2, "0");
   const paddedDay = String(data.date.d).padStart(2, "0");
 
   return (
-    <DashboardCard className="justify-between lg:self-start 2xl:self-stretch">
+    <DashboardCard className={`justify-between lg:self-start 2xl:self-stretch${className ? ` ${className}` : ""}`}>
       <div className="flex justify-between gap-4 text-[15px] tracking-[0.18em] text-[#9aa0aa] sm:text-[17px]">
         <span>
           {data.date.y}.{paddedMonth}.{paddedDay}
