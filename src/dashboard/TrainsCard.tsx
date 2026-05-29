@@ -54,7 +54,7 @@ export function TrainsCard({
 
       <div className="mt-auto pt-6">
         <div className="mb-3 border-t border-[#e8e6df] pt-5 text-[13px] tracking-[0.16em] text-[#9aa0aa]">運行状況</div>
-        <div className="grid gap-2.5 sm:grid-cols-2">
+        <div className="grid gap-2.5">
           {data.lines.map((line) => (
             <div
               key={line.name}

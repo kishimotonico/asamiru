@@ -52,8 +52,8 @@ export const dashboardData: DashboardData = {
       { when: "夜", title: "燃えるゴミ 出す" },
     ],
     upcoming: [
-      { date: "明日 (水)", when: "終日", title: "有給休暇" },
-      { date: "土 2/15", when: "午後", title: "美容院" },
+      { date: "2/12（水）", when: "終日", title: "有給休暇" },
+      { date: "2/15（土）", when: "午後", title: "美容院" },
     ],
   },
 };

@@ -26,7 +26,7 @@ export function ScheduleCard({ data, className }: { data: DashboardData["schedul
           <div className="mb-2.5 text-xs tracking-[0.16em] text-[#9aa0aa]">このさき</div>
           {data.upcoming.map((event) => (
             <div key={`${event.date}-${event.title}`} className="flex items-baseline gap-3 py-1.5 text-[15px] text-[#5a5f69]">
-              <span className="w-20 shrink-0 text-[#9aa0aa]">{event.date}</span>
+              <span className="w-24 shrink-0 whitespace-nowrap text-[#9aa0aa]">{event.date}</span>
               <span className="w-10 shrink-0 text-[#9aa0aa]">{event.when ?? event.time}</span>
               <span className="min-w-0 text-[#1f2024]">{event.title}</span>
             </div>

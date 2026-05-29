@@ -20,9 +20,15 @@ export function WeatherCard({
         <div className="min-w-0 flex-1">
           <div className="text-base tracking-[0.06em] text-[#9aa0aa]">今日</div>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-7xl font-light leading-none tracking-[-0.03em] sm:text-8xl">{today.high}</span>
-            <span className="text-3xl text-[#9aa0aa]">°/</span>
-            <span className="text-4xl font-light text-[#5a5f69]">{today.low}°</span>
+            <span className="text-7xl font-light leading-none tracking-normal sm:text-8xl">
+              {today.high}
+              <span className="ml-1 text-3xl text-[#9aa0aa] sm:text-4xl">℃</span>
+            </span>
+            <span className="text-3xl text-[#9aa0aa]">/</span>
+            <span className="text-4xl font-light text-[#5a5f69]">
+              {today.low}
+              <span className="ml-0.5 text-2xl text-[#9aa0aa]">℃</span>
+            </span>
           </div>
           <div className="mt-2 text-lg text-[#5a5f69] sm:text-xl">
             {today.label}
@@ -36,7 +42,10 @@ export function WeatherCard({
           <div key={hour.h} className="flex flex-col items-center gap-1.5 text-center">
             <div className="text-sm tracking-[0.06em] text-[#9aa0aa]">{hour.h}:00</div>
             <WeatherIcon kind={hour.icon} size={30} className="text-[#5a5f69]" />
-            <div className="text-[22px] font-medium">{hour.temp}°</div>
+            <div className="text-[22px] font-medium">
+              {hour.temp}
+              <span className="ml-0.5 text-sm text-[#9aa0aa]">℃</span>
+            </div>
             <div className={`text-xs ${hour.pop > 20 ? "font-medium text-[var(--accent)]" : "text-[#9aa0aa]"}`}>
               {hour.pop > 0 ? `${hour.pop}%` : "—"}
             </div>
@@ -56,8 +65,14 @@ export function WeatherCard({
                 {day.heading} · {day.weekday}
               </div>
               <div className="mt-1 flex items-baseline gap-1.5">
-                <span className="text-2xl font-medium">{day.high}°</span>
-                <span className="text-base text-[#9aa0aa]">/ {day.low}°</span>
+                <span className="text-2xl font-medium">
+                  {day.high}
+                  <span className="ml-0.5 text-base text-[#9aa0aa]">℃</span>
+                </span>
+                <span className="text-base text-[#9aa0aa]">
+                  / {day.low}
+                  <span className="text-sm">℃</span>
+                </span>
                 <span className={`ml-1 text-[13px] ${day.pop > 20 ? "text-[var(--accent)]" : "text-[#9aa0aa]"}`}>
                   {day.pop}%
                 </span>
