@@ -1,11 +1,11 @@
 import type { DashboardData } from "./types";
 import { DashboardCard } from "./DashboardCard";
 
-export function ScheduleCard({ data }: { data: DashboardData["schedule"] }) {
+export function ScheduleCard({ data, className }: { data: DashboardData["schedule"]; className?: string }) {
   const itemCount = data.today.length;
 
   return (
-    <DashboardCard label="予定" kicker="Today" right={itemCount === 0 ? "予定なし" : `${itemCount} 件`}>
+    <DashboardCard label="予定" kicker="Today" right={itemCount === 0 ? "予定なし" : `${itemCount} 件`} className={className}>
       {itemCount === 0 ? (
         <div className="mt-3 text-[22px] text-[#9aa0aa]">今日の予定はありません</div>
       ) : (
