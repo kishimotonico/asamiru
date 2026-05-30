@@ -33,12 +33,13 @@ export function trainStatusQueryOptions(watchedLines: WatchedLine[]) {
 
 export function trainsQueryOptions(queryClient: QueryClient, settings: TrainsSettings) {
   return queryOptions({
-    queryKey: ["dashboard", "trains", { boardingStation: settings.boardingStation }],
+    queryKey: ["dashboard", "trains", { boardingStation: settings.boardingStation, displayCount: settings.displayCount }],
     queryFn: ({ signal }) =>
       fetchTrains({
         boardingStation: settings.boardingStation,
+        displayCount: settings.displayCount,
         signal,
-        loadDia: (trainId) => queryClient.fetchQuery(trainDiaQueryOptions(trainId)),
+        loadDia: (trainId, serviceDate) => queryClient.fetchQuery(trainDiaQueryOptions(trainId, serviceDate)),
       }),
     staleTime: TRAINS_INTERVAL_MS,
     refetchInterval: TRAINS_INTERVAL_MS,
@@ -46,9 +47,9 @@ export function trainsQueryOptions(queryClient: QueryClient, settings: TrainsSet
   });
 }
 
-function trainDiaQueryOptions(trainId: string) {
+function trainDiaQueryOptions(trainId: string, serviceDate: string) {
   return queryOptions({
-    queryKey: ["keio", "dia", trainId],
+    queryKey: ["keio", "dia", serviceDate, trainId],
     queryFn: ({ signal }) => fetchTrainDia(trainId, { signal }),
     staleTime: DIA_TTL_MS,
     gcTime: DIA_TTL_MS,

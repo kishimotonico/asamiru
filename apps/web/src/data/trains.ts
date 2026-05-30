@@ -47,10 +47,60 @@ type PositionedTrain = {
   distanceToStation: number;
 };
 
+type StopCacheValue =
+  | {
+      stops: true;
+      scheduledMinutes: number;
+      destination: string;
+    }
+  | { stops: false };
+
 const TRAFFIC_URL = "https://i.opentidkeio.jp/data/traffic_info.json";
 const DIA_URL_BASE = "https://i.opentidkeio.jp/dia/";
-const PREFETCH_LIMIT_PER_DIRECTION = 6;
 const TARGET_LINES = new Set(["K", "S"]);
+const SERVICE_DAY_ROLLOVER_MINUTES = 4 * 60;
+const MAX_DIA_CHECKS_CAP_PER_DIRECTION = 10;
+const SAGAMIHARA_LINE_DESTINATIONS = new Set(["048", "054"]);
+const HACHIOJI_TAKAO_DESTINATIONS = new Set(["027", "032", "036", "037", "043"]);
+const SAGAMIHARA_LINE_STATIONS = new Set([
+  "京王多摩川",
+  "京王稲田堤",
+  "京王よみうりランド",
+  "稲城",
+  "若葉台",
+  "京王永山",
+  "京王多摩センター",
+  "京王堀之内",
+  "南大沢",
+  "多摩境",
+  "橋本",
+]);
+const HACHIOJI_TAKAO_LINE_STATIONS = new Set([
+  "西調布",
+  "飛田給",
+  "武蔵野台",
+  "多磨霊園",
+  "東府中",
+  "府中",
+  "分倍河原",
+  "中河原",
+  "聖蹟桜ヶ丘",
+  "百草園",
+  "高幡不動",
+  "南平",
+  "平山城址公園",
+  "長沼",
+  "北野",
+  "京王八王子",
+  "京王片倉",
+  "山田",
+  "めじろ台",
+  "狭間",
+  "高尾",
+  "高尾山口",
+]);
+const stopCache = new Map<string, StopCacheValue>();
+let stopCacheServiceDate: string | undefined;
 const STATION_ORDER_BY_NAME: ReadonlyMap<string, number> = new Map(
   [
     ["新宿", 1],
@@ -110,7 +160,8 @@ const STATION_ORDER_BY_NAME: ReadonlyMap<string, number> = new Map(
 
 type FetchTrainsOptions = {
   boardingStation: string;
-  loadDia: (trainId: string) => Promise<DiaResponse>;
+  displayCount: number;
+  loadDia: (trainId: string, serviceDate: string) => Promise<DiaResponse>;
   now?: Date;
   signal?: AbortSignal;
 };
@@ -119,48 +170,63 @@ type FetchDiaOptions = {
   signal?: AbortSignal;
 };
 
-const DISPLAY_LIMIT_PER_DIRECTION = 6;
-
-export async function fetchTrains({ boardingStation, loadDia, now = new Date(), signal }: FetchTrainsOptions): Promise<DashboardData["trains"]> {
+export async function fetchTrains({
+  boardingStation,
+  displayCount,
+  loadDia,
+  now = new Date(),
+  signal,
+}: FetchTrainsOptions): Promise<DashboardData["trains"]> {
   const directionFilter = "both";
+  const displayLimit = normalizedDisplayCount(displayCount);
+  const maxDiaChecks = maxDiaChecksPerDirection(displayLimit);
+  const serviceDate = serviceDateKey(now);
+  pruneStopCache(serviceDate);
 
   const boardingOrder = stationOrder(boardingStation);
   const traffic = await fetchTraffic(signal);
-  const positionedTrains = collectUpcomingTrains(traffic, boardingOrder, directionFilter);
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const positionedTrains = collectUpcomingTrains(traffic, boardingStation, boardingOrder, directionFilter);
+  const currentMinutes = currentServiceDayMinutes(now);
   const candidates: TrainCandidate[] = [];
   const validCounts = new Map<string, number>();
+  const diaCheckCounts = new Map<string, number>();
   const failures: string[] = [];
 
   for (const { train, trainId } of positionedTrains) {
     signal?.throwIfAborted();
 
     const direction = directionKey(train.ki, "");
-    if ((validCounts.get(direction) ?? 0) >= DISPLAY_LIMIT_PER_DIRECTION) {
+    if ((validCounts.get(direction) ?? 0) >= displayLimit) {
       continue;
     }
 
     try {
-      const dia = await loadDia(trainId);
-      const stop = dia.dy?.find((item) => item.sn === boardingStation);
-      if (!stop?.ht) {
+      const stop = await resolveStopInfo({
+        trainId,
+        boardingStation,
+        direction,
+        serviceDate,
+        loadDia,
+        diaCheckCounts,
+        maxDiaChecks,
+      });
+      if (!stop?.stops) {
         continue;
       }
 
-      const scheduledMinutes = parseTimeToMinutes(stop.ht);
       const delay = parseDelay(train.dl);
-      const estimatedMinutes = scheduledMinutes + delay;
+      const estimatedMinutes = stop.scheduledMinutes + delay;
       if (estimatedMinutes < currentMinutes) {
         continue;
       }
 
-      const dest = destinationFromDia(dia) ?? destinationLabel(train.ik_tr || train.ik);
+      const dest = stop.destination || destinationLabel(train.ik_tr || train.ik);
       candidates.push({
         trainId,
         direction,
         kind: serviceLabel(train.sy_tr || train.sy),
         dest,
-        scheduledMinutes,
+        scheduledMinutes: stop.scheduledMinutes,
         estimatedMinutes,
         delay,
       });
@@ -179,13 +245,49 @@ export async function fetchTrains({ boardingStation, loadDia, now = new Date(), 
 
   return {
     station: boardingStation,
-    departures: groupDepartures(candidates),
+    departures: groupDepartures(candidates, displayLimit),
     lines: [],
   };
 }
 
+async function resolveStopInfo({
+  trainId,
+  boardingStation,
+  direction,
+  serviceDate,
+  loadDia,
+  diaCheckCounts,
+  maxDiaChecks,
+}: {
+  trainId: string;
+  boardingStation: string;
+  direction: string;
+  serviceDate: string;
+  loadDia: (trainId: string, serviceDate: string) => Promise<DiaResponse>;
+  diaCheckCounts: Map<string, number>;
+  maxDiaChecks: number;
+}): Promise<StopCacheValue | undefined> {
+  const cacheKey = stopCacheKey(serviceDate, trainId, boardingStation);
+  const cached = stopCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const checks = diaCheckCounts.get(direction) ?? 0;
+  if (checks >= maxDiaChecks) {
+    return undefined;
+  }
+  diaCheckCounts.set(direction, checks + 1);
+
+  const dia = await loadDia(trainId, serviceDate);
+  const stopInfo = stopInfoFromDia(dia, boardingStation);
+  stopCache.set(cacheKey, stopInfo);
+  return stopInfo;
+}
+
 function collectUpcomingTrains(
   traffic: TrafficResponse,
+  boardingStation: string,
   boardingOrder: number,
   directionFilter: "0" | "1" | "both",
 ): PositionedTrain[] {
@@ -206,6 +308,9 @@ function collectUpcomingTrains(
       if (!trainId || (directionFilter !== "both" && train.ki !== directionFilter)) {
         continue;
       }
+      if (isProbablyUnreachableBranch(boardingStation, train)) {
+        continue;
+      }
 
       const distanceToStation = distanceBeforeBoarding(positionOrder, boardingOrder, train.ki);
       if (distanceToStation === undefined) {
@@ -220,9 +325,7 @@ function collectUpcomingTrains(
   }
 
   return [...byDirection.values()].flatMap((group) =>
-    group
-      .sort((a, b) => a.distanceToStation - b.distanceToStation || a.trainId.localeCompare(b.trainId))
-      .slice(0, PREFETCH_LIMIT_PER_DIRECTION),
+    group.sort((a, b) => a.distanceToStation - b.distanceToStation || a.trainId.localeCompare(b.trainId)),
   );
 }
 
@@ -254,7 +357,7 @@ export async function fetchTrainDia(trainId: string, { signal }: FetchDiaOptions
   return value;
 }
 
-function groupDepartures(candidates: TrainCandidate[]): DashboardData["trains"]["departures"] {
+function groupDepartures(candidates: TrainCandidate[], displayLimit: number): DashboardData["trains"]["departures"] {
   const grouped = new Map<string, TrainCandidate[]>();
 
   for (const candidate of candidates) {
@@ -270,7 +373,7 @@ function groupDepartures(candidates: TrainCandidate[]): DashboardData["trains"][
         direction,
         trains
           .sort((a, b) => a.estimatedMinutes - b.estimatedMinutes || a.trainId.localeCompare(b.trainId))
-          .slice(0, DISPLAY_LIMIT_PER_DIRECTION)
+          .slice(0, displayLimit)
           .map((train) => ({
             time: formatMinutes(train.estimatedMinutes),
             scheduled: train.delay > 0 ? formatMinutes(train.scheduledMinutes) : undefined,
@@ -288,6 +391,11 @@ function parseTimeToMinutes(time: string): number {
     throw new Error(`Invalid train time: ${time}`);
   }
   return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function parseServiceDayTimeToMinutes(time: string): number {
+  const minutes = parseTimeToMinutes(time);
+  return minutes < SERVICE_DAY_ROLLOVER_MINUTES ? minutes + 24 * 60 : minutes;
 }
 
 function parseDelay(delay: string | undefined): number {
@@ -325,6 +433,87 @@ function stationOrder(stationName: string): number {
     throw new Error(`Unsupported KEIO boarding station: ${stationName}`);
   }
   return order;
+}
+
+function normalizedDisplayCount(displayCount: number): number {
+  return Number.isFinite(displayCount) ? Math.max(1, Math.floor(displayCount)) : 1;
+}
+
+function maxDiaChecksPerDirection(displayCount: number): number {
+  return Math.min(MAX_DIA_CHECKS_CAP_PER_DIRECTION, Math.max(displayCount + 4, displayCount * 2));
+}
+
+function stopInfoFromDia(dia: DiaResponse, boardingStation: string): StopCacheValue {
+  const stop = dia.dy?.find((item) => item.sn === boardingStation);
+  if (!stop?.ht) {
+    return { stops: false };
+  }
+
+  return {
+    stops: true,
+    scheduledMinutes: parseServiceDayTimeToMinutes(stop.ht),
+    destination: destinationFromDia(dia) ?? "",
+  };
+}
+
+function stopCacheKey(serviceDate: string, trainId: string, boardingStation: string): string {
+  return `${serviceDate}:${trainId}:${boardingStation}`;
+}
+
+function pruneStopCache(serviceDate: string): void {
+  if (stopCacheServiceDate === serviceDate) {
+    return;
+  }
+
+  stopCache.clear();
+  stopCacheServiceDate = serviceDate;
+}
+
+function serviceDateKey(now: Date): string {
+  const serviceDate = new Date(now);
+  if (now.getHours() < SERVICE_DAY_ROLLOVER_MINUTES / 60) {
+    serviceDate.setDate(serviceDate.getDate() - 1);
+  }
+
+  const year = serviceDate.getFullYear();
+  const month = String(serviceDate.getMonth() + 1).padStart(2, "0");
+  const day = String(serviceDate.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function currentServiceDayMinutes(now: Date): number {
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  return minutes < SERVICE_DAY_ROLLOVER_MINUTES ? minutes + 24 * 60 : minutes;
+}
+
+function isProbablyUnreachableBranch(boardingStation: string, train: TrainPosition): boolean {
+  const branch = stationBranch(boardingStation);
+  if (branch === "common") {
+    return false;
+  }
+
+  const codes = destinationCodes(train);
+  const hasSagamiharaDestination = codes.some((code) => SAGAMIHARA_LINE_DESTINATIONS.has(code));
+  const hasHachiojiTakaoDestination = codes.some((code) => HACHIOJI_TAKAO_DESTINATIONS.has(code));
+
+  if (branch === "sagamihara") {
+    return hasHachiojiTakaoDestination && !hasSagamiharaDestination;
+  }
+  return hasSagamiharaDestination && !hasHachiojiTakaoDestination;
+}
+
+function stationBranch(stationName: string): "common" | "sagamihara" | "hachiojiTakao" {
+  if (SAGAMIHARA_LINE_STATIONS.has(stationName)) {
+    return "sagamihara";
+  }
+  if (HACHIOJI_TAKAO_LINE_STATIONS.has(stationName)) {
+    return "hachiojiTakao";
+  }
+  return "common";
+}
+
+function destinationCodes(train: TrainPosition): string[] {
+  return [train.ik_tr, train.ik].filter((code): code is string => typeof code === "string" && code.length > 0);
 }
 
 function formatMinutes(minutes: number): string {
@@ -381,6 +570,8 @@ function destinationLabel(code: string | undefined): string {
   switch (code) {
     case "001":
       return "新宿";
+    case "027":
+      return "高幡不動";
     case "032":
       return "京王八王子";
     case "036":
