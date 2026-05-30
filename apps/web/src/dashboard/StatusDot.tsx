@@ -1,5 +1,7 @@
+import type { TrainStatusLevel } from "@asamiru/shared";
+
 type StatusDotProps = {
-  level: "ok" | "warn" | "info";
+  level: TrainStatusLevel;
 };
 
 const levelClassName = {

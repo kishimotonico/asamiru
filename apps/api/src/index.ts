@@ -6,10 +6,12 @@ import { type TrainLineStatus, type TrainStatusResponse, watchedTrainLines } fro
 
 const PORT = Number(process.env.PORT ?? 8787);
 const CACHE_TTL_MS = 2 * 60 * 1000;
+const ERROR_TTL_MS = 30 * 1000;
 const FETCH_TIMEOUT_MS = 5000;
 const USER_AGENT = "asamiru/0.1 personal dashboard";
 
 let trainStatusCache: { value: TrainStatusResponse; expiresAt: number } | undefined;
+let trainStatusErrorCache: { expiresAt: number } | undefined;
 let trainStatusInflight: Promise<TrainStatusResponse> | undefined;
 
 const app = new Hono();
@@ -34,13 +36,26 @@ async function getTrainStatus(): Promise<TrainStatusResponse> {
   if (trainStatusCache && trainStatusCache.expiresAt > now) {
     return trainStatusCache.value;
   }
-
+  if (trainStatusErrorCache && trainStatusErrorCache.expiresAt > now) {
+    throw new Error("train status fetch in backoff period");
+  }
   if (trainStatusInflight) {
     return trainStatusInflight;
   }
 
-  trainStatusInflight = Promise.all(watchedTrainLines.map(fetchLineStatus))
-    .then((lines) => {
+  trainStatusInflight = Promise.allSettled(watchedTrainLines.map(fetchLineStatus))
+    .then((results) => {
+      const lines: TrainLineStatus[] = [];
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          lines.push(result.value);
+        } else {
+          console.error("fetchLineStatus failed:", result.reason);
+        }
+      }
+      if (lines.length === 0) {
+        throw new Error("all train line fetches failed");
+      }
       const value: TrainStatusResponse = {
         lines,
         source: "yahoo-transit",
@@ -48,6 +63,10 @@ async function getTrainStatus(): Promise<TrainStatusResponse> {
       };
       trainStatusCache = { value, expiresAt: Date.now() + CACHE_TTL_MS };
       return value;
+    })
+    .catch((err: unknown) => {
+      trainStatusErrorCache = { expiresAt: Date.now() + ERROR_TTL_MS };
+      throw err;
     })
     .finally(() => {
       trainStatusInflight = undefined;
@@ -92,39 +111,36 @@ async function fetchText(url: string): Promise<string> {
 
 function parseYahooTrainInfo(html: string): Pick<TrainLineStatus, "status" | "level" | "note"> {
   const $ = load(html);
-  const heading = $(".elmTblLstLine h1, h1").first().text().trim();
-  const statusText = $(".elmTblLstLine .icnNormalLarge, .icnAlertLarge, .icnCautionLarge").first().text().trim();
-  const detailText = $(".elmTblLstLine p, #mdServiceStatus p, .trouble p")
-    .map((_, element) => $(element).text().replace(/\s+/g, " ").trim())
-    .get()
-    .find(Boolean);
+  const heading = $(".elmTblLstLine h1").first().text().trim();
+  const statusText = $(
+    ".elmTblLstLine .icnNormalLarge, .elmTblLstLine .icnAlertLarge, .elmTblLstLine .icnCautionLarge",
+  )
+    .first()
+    .text()
+    .trim();
 
-  const pageText = $("body").text().replace(/\s+/g, " ").trim();
-  const status = statusText || inferStatus(pageText);
+  const status = statusText || inferStatus($("body").text());
   if (!status) {
     throw new Error(`Yahoo transit response is not parseable${heading ? `: ${heading}` : ""}`);
   }
 
+  const note = $(".elmTblLstLine p, #mdServiceStatus p, .trouble p")
+    .map((_, element) => $(element).text().replace(/\s+/g, " ").trim())
+    .get()
+    .filter((t) => t && t !== status)
+    .join(" ") || undefined;
+
   return {
     status,
     level: status === "平常運転" ? "ok" : "warn",
-    note: detailText && detailText !== status ? detailText : undefined,
+    note,
   };
 }
 
 function inferStatus(text: string): string | undefined {
-  if (text.includes("平常運転")) {
-    return "平常運転";
-  }
-  if (text.includes("運転見合わせ")) {
-    return "運転見合わせ";
-  }
-  if (text.includes("遅延")) {
-    return "遅延";
-  }
-  if (text.includes("運転状況")) {
-    return "運転状況";
-  }
+  if (text.includes("平常運転")) return "平常運転";
+  if (text.includes("運転見合わせ")) return "運転見合わせ";
+  if (text.includes("遅延")) return "遅延";
   return undefined;
 }
 

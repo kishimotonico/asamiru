@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { AsyncCardBoundary } from "./AsyncCardBoundary";
 import { ClockCard } from "./ClockCard";
 import { WeatherCard, WeatherErrorCard, WeatherLoadingCard } from "./WeatherCard";
@@ -55,10 +55,10 @@ function WeatherDataCard({ className }: { className?: string }) {
 function TrainsDataCard({ className }: { className?: string }) {
   const queryClient = useQueryClient();
   const trains = useSuspenseQuery(trainsQueryOptions(queryClient));
-  const trainStatus = useSuspenseQuery(trainStatusQueryOptions());
+  const trainStatus = useQuery(trainStatusQueryOptions());
   return (
     <TrainsCard
-      data={{ ...trains.data, lines: trainStatus.data.lines }}
+      data={{ ...trains.data, lines: trainStatus.data?.lines ?? [] }}
       error={trains.error ?? trainStatus.error}
       refreshing={trains.isFetching || trainStatus.isFetching}
       className={className}
