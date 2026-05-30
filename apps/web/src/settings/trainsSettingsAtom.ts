@@ -28,7 +28,7 @@ const DEFAULT_TRAINS_SETTINGS: TrainsSettings = {
     { name: "京王線", yahooUrl: "https://transit.yahoo.co.jp/diainfo/102/0" },
     { name: "中央線", yahooUrl: "https://transit.yahoo.co.jp/diainfo/38/0" },
     { name: "総武線", yahooUrl: "https://transit.yahoo.co.jp/diainfo/40/0" },
-    { name: "多摩モノレール", yahooUrl: "https://transit.yahoo.co.jp/diainfo/137/0" },
+    { name: "多摩都市モノレール線", yahooUrl: "https://transit.yahoo.co.jp/diainfo/156/0" },
   ],
 };
 
