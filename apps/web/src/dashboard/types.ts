@@ -1,3 +1,5 @@
+import type { TrainLineStatus } from "@asamiru/shared";
+
 export type WeatherIconKind = "sun" | "cloud" | "partly" | "rain" | "snow";
 
 export type DashboardData = {
@@ -40,12 +42,7 @@ export type DashboardData = {
         delay: number;
       }>
     >;
-    lines: Array<{
-      name: string;
-      status: string;
-      level: "ok" | "warn" | "info";
-      note?: string;
-    }>;
+    lines: TrainLineStatus[];
   };
   schedule: {
     today: ScheduleEvent[];

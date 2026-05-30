@@ -5,7 +5,7 @@ import { ClockCard } from "./ClockCard";
 import { WeatherCard, WeatherErrorCard, WeatherLoadingCard } from "./WeatherCard";
 import { TrainsCard, TrainsErrorCard, TrainsLoadingCard } from "./TrainsCard";
 import { ScheduleCard } from "./ScheduleCard";
-import { trainsQueryOptions, weatherQueryOptions } from "./dashboardQueries";
+import { trainStatusQueryOptions, trainsQueryOptions, weatherQueryOptions } from "./dashboardQueries";
 import { scheduleData } from "./scheduleData";
 
 type AccentStyle = CSSProperties & { "--accent": string };
@@ -55,11 +55,12 @@ function WeatherDataCard({ className }: { className?: string }) {
 function TrainsDataCard({ className }: { className?: string }) {
   const queryClient = useQueryClient();
   const trains = useSuspenseQuery(trainsQueryOptions(queryClient));
+  const trainStatus = useSuspenseQuery(trainStatusQueryOptions());
   return (
     <TrainsCard
-      data={trains.data}
-      error={trains.error}
-      refreshing={trains.isFetching}
+      data={{ ...trains.data, lines: trainStatus.data.lines }}
+      error={trains.error ?? trainStatus.error}
+      refreshing={trains.isFetching || trainStatus.isFetching}
       className={className}
     />
   );

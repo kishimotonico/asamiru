@@ -5,24 +5,14 @@
   "type": "module",
   "packageManager": "pnpm@11.0.6",
   "scripts": {
-    "dev": "PORTLESS_HTTPS=0 PORTLESS_PORT=1355 portless run --name asa vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "dev": "pnpm --filter shared build && pnpm --filter api --filter web --parallel dev",
+    "dev:api": "pnpm --filter api dev",
+    "dev:web": "pnpm --filter web dev",
+    "build": "pnpm --filter shared build && pnpm --filter api build && pnpm --filter web build",
+    "preview": "pnpm --filter web preview"
   },
-  "dependencies": {
-    "@tanstack/react-query": "^5.100.14",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
-    "react-error-boundary": "^6.1.2"
-  },
+  "dependencies": {},
   "devDependencies": {
-    "@tailwindcss/vite": "^4.3.0",
-    "@types/node": "^24.12.4",
-    "@types/react": "^19.2.15",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.2",
-    "tailwindcss": "^4.3.0",
-    "typescript": "^6.0.3",
-    "vite": "^8.0.14"
+    "typescript": "^6.0.3"
   }
 }

@@ -63,6 +63,31 @@ export function TrainsCard({
           </div>
         ))}
       </div>
+
+      <div className="mt-6 border-t border-[#e8e6df] pt-5">
+        <div className="mb-3 text-[13px] tracking-[0.14em] text-[#9aa0aa]">路線運行情報</div>
+        {data.lines.length === 0 ? (
+          <div className="rounded-lg bg-[#f6f5ef] p-4 text-sm text-[#9aa0aa]">運行情報は取得されていません</div>
+        ) : (
+          <div className="grid gap-2">
+            {data.lines.map((line) => (
+              <div key={line.id} className="rounded-lg bg-[#f9f8f3] p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-semibold text-[#1f2024]">{line.name}</span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      line.level === "ok" ? "bg-[#edf5ec] text-[#4c7b4a]" : "bg-[#fbece8] text-[#c14b3a]"
+                    }`}
+                  >
+                    {line.status}
+                  </span>
+                </div>
+                {line.note ? <div className="mt-1 text-sm leading-relaxed text-[#5a5f69]">{line.note}</div> : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </DashboardCard>
   );
 }

@@ -148,7 +148,7 @@ opentidkeio から次発列車を計算する（`docs/keio-train-status-fetch.md
 確認:
 
 - `pnpm build`
-- `pnpm exec vite --host 127.0.0.1 --port 5173` で起動し、agent-browser で実画面を確認。
+- `pnpm dev` で起動し、agent-browser で実画面を確認。
 - Open-Meteo と opentidkeio へのブラウザ直 fetch が発生し、天気・交通が実データで表示されることを確認。
 - 交通カードは `調布` 駅設定で上り/下りの2方面にまとまって表示されることを確認。
 
@@ -164,6 +164,25 @@ opentidkeio から次発列車を計算する（`docs/keio-train-status-fetch.md
 確認:
 
 - `pnpm build`
+
+2026-05-30 Codex 追記:
+
+- 路線ごとの運行情報を追加するため、frontend-only 構成から pnpm workspace monorepo へ移行。
+- `apps/web` に既存 Vite + React SPA を移動。
+- `apps/api` に Hono backend を追加し、`GET /api/health` と `GET /api/train-status` を実装。
+- `packages/shared` に運行情報の共有型と監視対象路線設定を追加。
+- 監視対象は京王線・中央線・総武線・多摩モノレール
+- API は Yahoo!路線情報のHTMLを Cheerio でparseし、2分TTLのメモリキャッシュで取得頻度を制御する。
+- Web は Vite proxy 経由で `/api/train-status` を取得し、交通カードに「路線運行情報」を表示する。
+- `.env.local` は引き続きroot配置で読めるよう、`apps/web/vite.config.ts` に `envDir: "../.."` を設定。
+
+確認:
+
+- `pnpm approve-builds esbuild`
+- `pnpm build`
+- `pnpm dev` で API と Web を portless 経由で起動。
+- `http://asa-api.localhost:1355/api/health` と `http://asa-api.localhost:1355/api/train-status`
+- `http://asa.localhost:1355` を agent-browser で開き、路線運行情報の表示を確認。
 - `asa` の stale registration には触らず、別名 `asa-check.localhost:1355` で agent-browser 確認。
 - `調布` 駅設定で交通カードがエラーにならず、上り/下り各3本を表示。
 - 初回外部 API リクエストは Open-Meteo 1件、`traffic_info.json` 1件、`dia` 6件の計8件まで低減したことを確認。

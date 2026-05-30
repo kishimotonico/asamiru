@@ -1,0 +1,22 @@
+{
+  "name": "api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "PORTLESS_HTTPS=0 PORTLESS_PORT=1355 portless run --name asa-api tsx watch src/index.ts",
+    "build": "tsc -b",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@asamiru/shared": "workspace:*",
+    "@hono/node-server": "^1.19.6",
+    "cheerio": "^1.1.2",
+    "hono": "^4.10.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.4",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
+  }
+}
