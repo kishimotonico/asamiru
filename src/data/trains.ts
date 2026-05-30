@@ -21,7 +21,7 @@ type TrainPosition = {
   ik_tr?: string;
 };
 
-type DiaResponse = {
+export type DiaResponse = {
   dy?: DiaStop[];
 };
 
@@ -49,8 +49,6 @@ type PositionedTrain = {
 
 const TRAFFIC_URL = "https://i.opentidkeio.jp/data/traffic_info.json";
 const DIA_URL_BASE = "https://i.opentidkeio.jp/dia/";
-const TRAFFIC_TTL_MS = 90 * 1000;
-const DIA_TTL_MS = 12 * 60 * 60 * 1000;
 const DISPLAY_LIMIT_PER_DIRECTION = 3;
 const PREFETCH_LIMIT_PER_DIRECTION = 6;
 const TARGET_LINES = new Set(["K", "S"]);
@@ -111,12 +109,17 @@ const STATION_ORDER_BY_NAME: ReadonlyMap<string, number> = new Map(
   ] as const,
 );
 
-const diaCache = new Map<string, { value: DiaResponse; expiresAt: number }>();
-const diaInflight = new Map<string, Promise<DiaResponse>>();
-let trafficInflight: Promise<TrafficResponse> | undefined;
-let trafficCache: { value: TrafficResponse; expiresAt: number } | undefined;
+type FetchTrainsOptions = {
+  loadDia: (trainId: string) => Promise<DiaResponse>;
+  now?: Date;
+  signal?: AbortSignal;
+};
 
-export async function fetchTrains(now = new Date()): Promise<DashboardData["trains"]> {
+type FetchDiaOptions = {
+  signal?: AbortSignal;
+};
+
+export async function fetchTrains({ loadDia, now = new Date(), signal }: FetchTrainsOptions): Promise<DashboardData["trains"]> {
   const boardingStation = import.meta.env.VITE_KEIO_BOARDING_STATION?.trim();
   const directionFilter = readDirectionFilter();
   if (!boardingStation) {
@@ -124,7 +127,7 @@ export async function fetchTrains(now = new Date()): Promise<DashboardData["trai
   }
 
   const boardingOrder = stationOrder(boardingStation);
-  const traffic = await fetchTraffic();
+  const traffic = await fetchTraffic(signal);
   const positionedTrains = collectUpcomingTrains(traffic, boardingOrder, directionFilter);
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const candidates: TrainCandidate[] = [];
@@ -132,13 +135,15 @@ export async function fetchTrains(now = new Date()): Promise<DashboardData["trai
   const failures: string[] = [];
 
   for (const { train, trainId } of positionedTrains) {
+    signal?.throwIfAborted();
+
     const direction = directionKey(train.ki, "");
     if ((validCounts.get(direction) ?? 0) >= DISPLAY_LIMIT_PER_DIRECTION) {
       continue;
     }
 
     try {
-      const dia = await fetchDia(trainId);
+      const dia = await loadDia(trainId);
       const stop = dia.dy?.find((item) => item.sn === boardingStation);
       if (!stop?.ht) {
         continue;
@@ -163,6 +168,9 @@ export async function fetchTrains(now = new Date()): Promise<DashboardData["trai
       });
       validCounts.set(direction, (validCounts.get(direction) ?? 0) + 1);
     } catch (error) {
+      if (signal?.aborted) {
+        throw error;
+      }
       failures.push(`${trainId}: ${errorMessage(error)}`);
     }
   }
@@ -220,68 +228,32 @@ function collectUpcomingTrains(
   );
 }
 
-async function fetchTraffic(): Promise<TrafficResponse> {
-  const cached = trafficCache;
-  const now = Date.now();
-  if (cached && cached.expiresAt > now) {
-    return cached.value;
+async function fetchTraffic(signal?: AbortSignal): Promise<TrafficResponse> {
+  const response = await fetch(TRAFFIC_URL, { signal });
+  if (!response.ok) {
+    throw new Error(`opentidkeio traffic returned ${response.status}`);
   }
 
-  if (!trafficInflight) {
-    trafficInflight = fetch(TRAFFIC_URL)
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error(`opentidkeio traffic returned ${response.status}`);
-        }
-
-        const value = (await response.json()) as TrafficResponse;
-        if (!Array.isArray(value.TS) || !Array.isArray(value.TB)) {
-          throw new Error("opentidkeio traffic response is incomplete");
-        }
-
-        trafficCache = { value, expiresAt: Date.now() + TRAFFIC_TTL_MS };
-        return value;
-      })
-      .finally(() => {
-        trafficInflight = undefined;
-      });
+  const value = (await response.json()) as TrafficResponse;
+  if (!Array.isArray(value.TS) || !Array.isArray(value.TB)) {
+    throw new Error("opentidkeio traffic response is incomplete");
   }
 
-  return trafficInflight;
+  return value;
 }
 
-async function fetchDia(trainId: string): Promise<DiaResponse> {
-  const cached = diaCache.get(trainId);
-  const now = Date.now();
-  if (cached && cached.expiresAt > now) {
-    return cached.value;
+export async function fetchTrainDia(trainId: string, { signal }: FetchDiaOptions = {}): Promise<DiaResponse> {
+  const response = await fetch(`${DIA_URL_BASE}${encodeURIComponent(trainId)}.json`, { signal });
+  if (!response.ok) {
+    throw new Error(`opentidkeio dia ${trainId} returned ${response.status}`);
   }
 
-  const inflight = diaInflight.get(trainId);
-  if (inflight) {
-    return inflight;
+  const value = (await response.json()) as DiaResponse;
+  if (!Array.isArray(value.dy)) {
+    throw new Error(`opentidkeio dia ${trainId} response is incomplete`);
   }
 
-  const request = fetch(`${DIA_URL_BASE}${encodeURIComponent(trainId)}.json`)
-    .then(async (response) => {
-      if (!response.ok) {
-        throw new Error(`opentidkeio dia ${trainId} returned ${response.status}`);
-      }
-
-      const value = (await response.json()) as DiaResponse;
-      if (!Array.isArray(value.dy)) {
-        throw new Error(`opentidkeio dia ${trainId} response is incomplete`);
-      }
-
-      diaCache.set(trainId, { value, expiresAt: Date.now() + DIA_TTL_MS });
-      return value;
-    })
-    .finally(() => {
-      diaInflight.delete(trainId);
-    });
-
-  diaInflight.set(trainId, request);
-  return request;
+  return value;
 }
 
 function groupDepartures(candidates: TrainCandidate[]): DashboardData["trains"]["departures"] {

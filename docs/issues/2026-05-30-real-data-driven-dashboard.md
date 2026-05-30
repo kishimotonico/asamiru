@@ -167,3 +167,29 @@ opentidkeio から次発列車を計算する（`docs/keio-train-status-fetch.md
 - `asa` の stale registration には触らず、別名 `asa-check.localhost:1355` で agent-browser 確認。
 - `調布` 駅設定で交通カードがエラーにならず、上り/下り各3本を表示。
 - 初回外部 API リクエストは Open-Meteo 1件、`traffic_info.json` 1件、`dia` 6件の計8件まで低減したことを確認。
+
+2026-05-30 Codex 追記:
+
+- 自前の `useEffect` polling / `AsyncState` 実装を TanStack Query v5 ベースへ移行。
+- `QueryClientProvider` を追加し、天気・交通は `useSuspenseQuery` + カード単位の `Suspense` / error boundary で読み込む構成に変更。
+- 初回ロードは各カードの loading fallback を表示し、初回失敗時だけカード単位で「取得失敗」+「再試行」を表示する。
+- 取得済みデータがある状態でバックグラウンド更新に失敗してもカード全体をエラー画面へ差し替えず、既存データを維持して「前回更新失敗」を表示する方針へ変更。
+- TanStack Query が cache / in-flight dedupe / polling を担当するため、天気と traffic のモジュールスコープ TTL cache は削除。列車別 `dia` は同一列車IDをまたぐ再利用価値があるため 12時間 cache を維持。
+- Open-Meteo / opentidkeio の fetch に `AbortSignal` を渡し、Query のキャンセルと連動するよう変更。
+
+確認:
+
+- `pnpm build`
+- 既存の `asa.localhost:1355` dev server を agent-browser で確認。
+- 天気・交通・予定が表示され、初回リクエストで TanStack Query 経由の Open-Meteo / opentidkeio fetch が発火することを確認。
+
+2026-05-30 Codex 追記:
+
+- 互換用に残っていた query result 変換 hook を削除し、`useSuspenseQuery` の戻り値をカード接続部で直接扱う構成へ整理。
+- 自前 class error boundary を削除し、`react-error-boundary` + `QueryErrorResetBoundary` の構成へ変更。
+- 列車別 `dia/{trainId}.json` の自前 `Map` cache / in-flight dedupe を削除し、`queryClient.fetchQuery` と `["keio", "dia", trainId]` query key で TanStack Query cache に統一。
+- 中断チェックは独自 `DOMException` 生成をやめ、標準の `AbortSignal.throwIfAborted()` に変更。
+
+確認:
+
+- `pnpm build`

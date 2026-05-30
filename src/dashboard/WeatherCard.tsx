@@ -1,30 +1,24 @@
 import type { DashboardData } from "./types";
+import { DataUpdateWarning, RetryButton, dataCardStatus } from "./DataCardStatus";
 import { DashboardCard } from "./DashboardCard";
 import { WeatherIcon } from "./WeatherIcon";
 
 export function WeatherCard({
   data,
   error,
-  loading = false,
+  refreshing = false,
   className,
 }: {
-  data?: DashboardData["weather"];
-  error?: string;
-  loading?: boolean;
+  data: DashboardData["weather"];
+  error?: Error | null;
+  refreshing?: boolean;
   className?: string;
 }) {
-  if (error) {
-    return <WeatherStatusCard className={className} title="取得失敗" detail={error} />;
-  }
-
-  if (loading || !data) {
-    return <WeatherStatusCard className={className} title="取得中" detail="天気データを読み込んでいます" />;
-  }
-
   const today = data.today;
 
   return (
-    <DashboardCard label="天気" kicker={data.location} className={className}>
+    <DashboardCard label="天気" kicker={data.location} right={dataCardStatus(refreshing, error)} className={className}>
+      {error ? <DataUpdateWarning error={error} /> : null}
       <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
         <div className="grid h-28 w-28 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-[#f3efe2] to-[#e8e4d3] text-[#1f2024] sm:h-32 sm:w-32">
           <WeatherIcon kind={today.hourly[1]?.icon ?? "sun"} size={84} strokeWidth={1.2} />
@@ -98,13 +92,22 @@ export function WeatherCard({
   );
 }
 
-function WeatherStatusCard({ className, title, detail }: { className?: string; title: string; detail: string }) {
+export function WeatherLoadingCard({ className }: { className?: string }) {
+  return <WeatherStatusCard className={className} title="取得中" detail="天気データを読み込んでいます" />;
+}
+
+export function WeatherErrorCard({ error, onRetry, className }: { error: string; onRetry?: () => void; className?: string }) {
+  return <WeatherStatusCard className={className} title="取得失敗" detail={error} onRetry={onRetry} />;
+}
+
+function WeatherStatusCard({ className, title, detail, onRetry }: { className?: string; title: string; detail: string; onRetry?: () => void }) {
   return (
     <DashboardCard label="天気" kicker="東京" className={className}>
       <div className="grid min-h-64 place-items-center rounded-lg bg-[#f6f5ef] p-6 text-center">
         <div>
           <div className="text-2xl font-semibold text-[#1f2024]">{title}</div>
           <div className="mt-2 text-sm text-[#9aa0aa]">{detail}</div>
+          <RetryButton onRetry={onRetry} />
         </div>
       </div>
     </DashboardCard>

@@ -1,29 +1,23 @@
 import type { DashboardData } from "./types";
+import { DataUpdateWarning, RetryButton, dataCardStatus } from "./DataCardStatus";
 import { DashboardCard } from "./DashboardCard";
 
 export function TrainsCard({
   data,
   error,
-  loading = false,
+  refreshing = false,
   className,
 }: {
-  data?: DashboardData["trains"];
-  error?: string;
-  loading?: boolean;
+  data: DashboardData["trains"];
+  error?: Error | null;
+  refreshing?: boolean;
   className?: string;
 }) {
-  if (error) {
-    return <TrainsStatusCard className={className} title="取得失敗" detail={error} />;
-  }
-
-  if (loading || !data) {
-    return <TrainsStatusCard className={className} title="取得中" detail="列車情報を読み込んでいます" />;
-  }
-
   const departureEntries = Object.entries(data.departures);
 
   return (
-    <DashboardCard label="交通" kicker={`${data.station} 駅`} className={className}>
+    <DashboardCard label="交通" kicker={`${data.station} 駅`} right={dataCardStatus(refreshing, error)} className={className}>
+      {error ? <DataUpdateWarning error={error} /> : null}
       <div className="grid gap-6 sm:grid-cols-2">
         {departureEntries.length === 0 ? (
           <div className="rounded-lg bg-[#f6f5ef] p-5 text-[#9aa0aa] sm:col-span-2">
@@ -73,13 +67,22 @@ export function TrainsCard({
   );
 }
 
-function TrainsStatusCard({ className, title, detail }: { className?: string; title: string; detail: string }) {
+export function TrainsLoadingCard({ className }: { className?: string }) {
+  return <TrainsStatusCard className={className} title="取得中" detail="列車情報を読み込んでいます" />;
+}
+
+export function TrainsErrorCard({ error, onRetry, className }: { error: string; onRetry?: () => void; className?: string }) {
+  return <TrainsStatusCard className={className} title="取得失敗" detail={error} onRetry={onRetry} />;
+}
+
+function TrainsStatusCard({ className, title, detail, onRetry }: { className?: string; title: string; detail: string; onRetry?: () => void }) {
   return (
     <DashboardCard label="交通" kicker="京王線" className={className}>
       <div className="grid min-h-64 place-items-center rounded-lg bg-[#f6f5ef] p-6 text-center">
         <div>
           <div className="text-2xl font-semibold text-[#1f2024]">{title}</div>
           <div className="mt-2 text-sm text-[#9aa0aa]">{detail}</div>
+          <RetryButton onRetry={onRetry} />
         </div>
       </div>
     </DashboardCard>
