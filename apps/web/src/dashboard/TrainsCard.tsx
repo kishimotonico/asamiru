@@ -83,12 +83,12 @@ function LineStatusSection({ lines }: { lines: DashboardData["trains"]["lines"] 
 
   if (issueLines.length === 0) {
     return (
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg bg-[#edf5ec] px-3 py-2.5">
-        <span className="flex items-center gap-1.5 text-sm font-semibold text-[#4c7b4a]">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg bg-[#f6f5ef] px-3 py-2.5">
+        <span className="flex items-center gap-1.5 text-sm font-medium text-[#5a5f69]">
           <StatusDot level="ok" />
           全線平常
         </span>
-        <span className="text-xs text-[#4c7b4a] opacity-75">{lines.map((l) => l.name).join(" · ")}</span>
+        <span className="text-xs text-[#9aa0aa]">{lines.map((l) => l.name).join(" · ")}</span>
       </div>
     );
   }

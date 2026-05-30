@@ -20,20 +20,25 @@ export function WeatherCard({
     <DashboardCard label="天気" kicker={data.location} right={dataCardStatus(refreshing, error)} className={className}>
       {error ? <DataUpdateWarning error={error} /> : null}
       <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-        <div className="grid h-28 w-28 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-[#f3efe2] to-[#e8e4d3] text-[#1f2024] sm:h-32 sm:w-32">
-          <WeatherIcon kind={today.hourly[1]?.icon ?? "sun"} size={84} strokeWidth={1.2} />
+        <div className="grid h-32 w-32 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-[#f3efe2] to-[#e8e4d3] text-[#1f2024] sm:h-36 sm:w-36">
+          <WeatherIcon
+            kind={today.hourly[1]?.icon ?? "sun"}
+            size={98}
+            strokeWidth={1.2}
+            className="translate-x-1.5 translate-y-0.5"
+          />
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-base tracking-[0.06em] text-[#9aa0aa]">今日</div>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-7xl font-light leading-none tracking-normal sm:text-8xl">
+            <span className="text-[2.875rem] font-light leading-none tracking-normal sm:text-[4.75rem]">
               {today.high}
-              <span className="ml-1 text-3xl text-[#9aa0aa] sm:text-4xl">℃</span>
+              <span className="ml-1 text-2xl text-[#9aa0aa] sm:text-[1.875rem]">℃</span>
             </span>
-            <span className="text-3xl text-[#9aa0aa]">/</span>
-            <span className="text-4xl font-light text-[#5a5f69]">
+            <span className="text-2xl text-[#9aa0aa] sm:text-3xl">/</span>
+            <span className="text-3xl font-light text-[#5a5f69] sm:text-4xl">
               {today.low}
-              <span className="ml-0.5 text-2xl text-[#9aa0aa]">℃</span>
+              <span className="ml-0.5 text-xl text-[#9aa0aa] sm:text-2xl">℃</span>
             </span>
           </div>
           <div className="mt-2 text-lg text-[#5a5f69] sm:text-xl">

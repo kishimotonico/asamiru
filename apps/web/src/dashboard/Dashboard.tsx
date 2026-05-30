@@ -3,12 +3,11 @@ import { useState } from "react";
 import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { AsyncCardBoundary } from "./AsyncCardBoundary";
+import { CalendarCard } from "./CalendarCard";
 import { ClockCard } from "./ClockCard";
 import { WeatherCard, WeatherErrorCard, WeatherLoadingCard } from "./WeatherCard";
 import { TrainsCard, TrainsErrorCard, TrainsLoadingCard } from "./TrainsCard";
-import { ScheduleCard } from "./ScheduleCard";
 import { trainStatusQueryOptions, trainsQueryOptions, weatherQueryOptions } from "./dashboardQueries";
-import { scheduleData } from "./scheduleData";
 import { weatherSettingsAtom } from "../settings/weatherSettingsAtom";
 import { trainsSettingsAtom } from "../settings/trainsSettingsAtom";
 import { SettingsModal } from "../settings/SettingsModal";
@@ -38,7 +37,7 @@ export function Dashboard({ accent = "#3a6b8a" }: DashboardProps) {
         >
           <TrainsDataCard className="2xl:row-span-2" />
         </AsyncCardBoundary>
-        <ScheduleCard data={scheduleData} />
+        <CalendarCard />
         <AsyncCardBoundary
           fallback={<WeatherLoadingCard />}
           errorFallback={(error, retry) => <WeatherErrorCard error={error} onRetry={retry} />}

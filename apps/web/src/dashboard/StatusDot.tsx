@@ -5,7 +5,7 @@ type StatusDotProps = {
 };
 
 const levelClassName = {
-  ok: "bg-[#5d8b6e]",
+  ok: "bg-[#c8c3b8]",
   warn: "bg-[#c14b3a]",
   info: "bg-slate-500",
 };
