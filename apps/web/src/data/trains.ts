@@ -239,10 +239,6 @@ export async function fetchTrains({
     }
   }
 
-  if (candidates.length === 0 && failures.length > 0) {
-    throw new Error(`列車時刻表の取得に失敗しました: ${failures.slice(0, 3).join(", ")}`);
-  }
-
   return {
     station: boardingStation,
     departures: groupDepartures(candidates, displayLimit),
