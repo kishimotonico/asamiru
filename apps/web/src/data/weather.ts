@@ -17,17 +17,16 @@ type OpenMeteoResponse = {
 };
 
 const WEATHER_ENDPOINT = "https://api.open-meteo.com/v1/forecast";
-const DEFAULT_LAT = 35.6895;
-const DEFAULT_LON = 139.6917;
 const HOURLY_HOURS = new Set([6, 9, 12, 15, 18, 21]);
 
 type FetchWeatherOptions = {
+  lat?: number;
+  lon?: number;
+  locationName?: string;
   signal?: AbortSignal;
 };
 
-export async function fetchWeather({ signal }: FetchWeatherOptions = {}): Promise<DashboardData["weather"]> {
-  const lat = readNumberEnv(import.meta.env.VITE_WEATHER_LAT, DEFAULT_LAT);
-  const lon = readNumberEnv(import.meta.env.VITE_WEATHER_LON, DEFAULT_LON);
+export async function fetchWeather({ lat = 35.6895, lon = 139.6917, locationName = "東京", signal }: FetchWeatherOptions = {}): Promise<DashboardData["weather"]> {
   const url = new URL(WEATHER_ENDPOINT);
 
   url.searchParams.set("latitude", String(lat));
@@ -42,10 +41,10 @@ export async function fetchWeather({ signal }: FetchWeatherOptions = {}): Promis
   }
 
   const raw = (await response.json()) as OpenMeteoResponse;
-  return normalizeWeather(raw);
+  return normalizeWeather(raw, locationName);
 }
 
-function normalizeWeather(raw: OpenMeteoResponse): DashboardData["weather"] {
+function normalizeWeather(raw: OpenMeteoResponse, locationName: string): DashboardData["weather"] {
   const hourly = raw.hourly;
   const daily = raw.daily;
 
@@ -81,7 +80,7 @@ function normalizeWeather(raw: OpenMeteoResponse): DashboardData["weather"] {
   }
 
   return {
-    location: "東京",
+    location: locationName,
     today: {
       label: weatherLabel(readNumber(daily.weather_code[todayIndex])),
       high: roundTemperature(daily.temperature_2m_max[todayIndex]),
@@ -121,17 +120,6 @@ function readNumber(value: number | undefined): number {
   return value;
 }
 
-function readNumberEnv(value: string | undefined, fallback: number): number {
-  if (!value) {
-    return fallback;
-  }
-
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) {
-    throw new Error(`Invalid numeric env value: ${value}`);
-  }
-  return parsed;
-}
 
 function roundTemperature(value: number | undefined): number {
   return Math.round(readNumber(value));

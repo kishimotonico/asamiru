@@ -49,7 +49,6 @@ type PositionedTrain = {
 
 const TRAFFIC_URL = "https://i.opentidkeio.jp/data/traffic_info.json";
 const DIA_URL_BASE = "https://i.opentidkeio.jp/dia/";
-const DISPLAY_LIMIT_PER_DIRECTION = 3;
 const PREFETCH_LIMIT_PER_DIRECTION = 6;
 const TARGET_LINES = new Set(["K", "S"]);
 const STATION_ORDER_BY_NAME: ReadonlyMap<string, number> = new Map(
@@ -110,6 +109,8 @@ const STATION_ORDER_BY_NAME: ReadonlyMap<string, number> = new Map(
 );
 
 type FetchTrainsOptions = {
+  boardingStation: string;
+  displayCount?: number;
   loadDia: (trainId: string) => Promise<DiaResponse>;
   now?: Date;
   signal?: AbortSignal;
@@ -119,12 +120,8 @@ type FetchDiaOptions = {
   signal?: AbortSignal;
 };
 
-export async function fetchTrains({ loadDia, now = new Date(), signal }: FetchTrainsOptions): Promise<DashboardData["trains"]> {
-  const boardingStation = import.meta.env.VITE_KEIO_BOARDING_STATION?.trim();
-  const directionFilter = readDirectionFilter();
-  if (!boardingStation) {
-    throw new Error("VITE_KEIO_BOARDING_STATION is required");
-  }
+export async function fetchTrains({ boardingStation, displayCount = 3, loadDia, now = new Date(), signal }: FetchTrainsOptions): Promise<DashboardData["trains"]> {
+  const directionFilter = "both";
 
   const boardingOrder = stationOrder(boardingStation);
   const traffic = await fetchTraffic(signal);
@@ -138,7 +135,7 @@ export async function fetchTrains({ loadDia, now = new Date(), signal }: FetchTr
     signal?.throwIfAborted();
 
     const direction = directionKey(train.ki, "");
-    if ((validCounts.get(direction) ?? 0) >= DISPLAY_LIMIT_PER_DIRECTION) {
+    if ((validCounts.get(direction) ?? 0) >= displayCount) {
       continue;
     }
 
@@ -181,7 +178,7 @@ export async function fetchTrains({ loadDia, now = new Date(), signal }: FetchTr
 
   return {
     station: boardingStation,
-    departures: groupDepartures(candidates),
+    departures: groupDepartures(candidates, displayCount),
     lines: [],
   };
 }
@@ -256,7 +253,7 @@ export async function fetchTrainDia(trainId: string, { signal }: FetchDiaOptions
   return value;
 }
 
-function groupDepartures(candidates: TrainCandidate[]): DashboardData["trains"]["departures"] {
+function groupDepartures(candidates: TrainCandidate[], displayCount: number): DashboardData["trains"]["departures"] {
   const grouped = new Map<string, TrainCandidate[]>();
 
   for (const candidate of candidates) {
@@ -272,7 +269,7 @@ function groupDepartures(candidates: TrainCandidate[]): DashboardData["trains"][
         direction,
         trains
           .sort((a, b) => a.estimatedMinutes - b.estimatedMinutes || a.trainId.localeCompare(b.trainId))
-          .slice(0, DISPLAY_LIMIT_PER_DIRECTION)
+          .slice(0, displayCount)
           .map((train) => ({
             time: formatMinutes(train.estimatedMinutes),
             scheduled: train.delay > 0 ? formatMinutes(train.scheduledMinutes) : undefined,
@@ -351,19 +348,6 @@ function directionKey(direction: string | undefined, dest: string): string {
   return dest ? `${dest}方面` : "方面未設定";
 }
 
-function readDirectionFilter(): "0" | "1" | "both" {
-  const value = import.meta.env.VITE_KEIO_DIRECTIONS?.trim().toLowerCase();
-  if (!value || value === "both") {
-    return "both";
-  }
-  if (value === "up" || value === "0") {
-    return "0";
-  }
-  if (value === "down" || value === "1") {
-    return "1";
-  }
-  throw new Error(`Invalid VITE_KEIO_DIRECTIONS: ${value}`);
-}
 
 function serviceLabel(code: string | undefined): string {
   switch (code) {

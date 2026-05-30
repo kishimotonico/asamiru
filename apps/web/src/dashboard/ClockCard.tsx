@@ -4,11 +4,12 @@ import { DashboardCard } from "./DashboardCard";
 type ClockCardProps = {
   className?: string;
   showSeconds?: boolean;
+  onSettingsClick?: () => void;
 };
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
-export function ClockCard({ className, showSeconds = true }: ClockCardProps) {
+export function ClockCard({ className, showSeconds = true, onSettingsClick }: ClockCardProps) {
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -29,6 +30,18 @@ export function ClockCard({ className, showSeconds = true }: ClockCardProps) {
         <div className="shrink-0 text-2xl font-medium tracking-normal text-[#5a5f69] sm:text-3xl lg:text-4xl">
           {dateText}
         </div>
+        {onSettingsClick ? (
+          <button
+            onClick={onSettingsClick}
+            className="flex h-9 w-9 items-center justify-center rounded-md text-[#9aa0aa] hover:bg-[#f5f3ee] hover:text-[#1f2024]"
+            aria-label="設定"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
+        ) : null}
       </div>
 
       <div className="mt-5 flex items-baseline font-mono leading-none tracking-normal text-[#1f2024]">
