@@ -1,4 +1,8 @@
-import type { SyncStorage } from "jotai/vanilla/utils";
+type SyncStorage<T> = {
+  getItem: (key: string, initialValue: T) => T;
+  setItem: (key: string, value: T) => void;
+  removeItem: (key: string) => void;
+};
 
 /**
  * localStorage からの復元値をデフォルト値とシャローマージするストレージ。
@@ -6,13 +10,13 @@ import type { SyncStorage } from "jotai/vanilla/utils";
  */
 export function mergedStorage<T extends object>(defaultValue: T): SyncStorage<T> {
   return {
-    getItem(key) {
+    getItem(key, initialValue) {
       try {
         const raw = localStorage.getItem(key);
-        if (!raw) return defaultValue;
-        return { ...defaultValue, ...(JSON.parse(raw) as Partial<T>) };
+        if (!raw) return initialValue;
+        return { ...initialValue, ...(JSON.parse(raw) as Partial<T>) };
       } catch {
-        return defaultValue;
+        return initialValue;
       }
     },
     setItem(key, value) {

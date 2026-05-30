@@ -22,6 +22,12 @@ app.use(
 
 app.get("/api/health", (c) => c.json({ ok: true }));
 
+app.delete("/api/train-status/cache", (c) => {
+  const count = lineStatusCache.size;
+  lineStatusCache.clear();
+  return c.json({ ok: true, cleared: count });
+});
+
 app.post("/api/train-status", async (c) => {
   const body = await c.req.json<{ lines: WatchedLine[] }>();
   const lines = Array.isArray(body?.lines) ? body.lines : [];
@@ -46,21 +52,40 @@ app.post("/api/train-status", async (c) => {
 });
 
 async function fetchLineStatus(line: WatchedLine): Promise<TrainLineStatus> {
-  const cached = lineStatusCache.get(line.yahooUrl);
+  const sourceUrl = normalizeYahooTransitInfoUrl(line.yahooUrl);
+  const cached = lineStatusCache.get(sourceUrl);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.value;
   }
 
-  const html = await fetchText(line.yahooUrl);
+  const html = await fetchText(sourceUrl);
   const parsed = parseYahooTrainInfo(html);
   const status: TrainLineStatus = {
-    name: line.name,
-    sourceUrl: line.yahooUrl,
+    name: parsed.sourceName,
+    sourceUrl,
     checkedAt: new Date().toISOString(),
-    ...parsed,
+    status: parsed.status,
+    level: parsed.level,
+    note: parsed.note,
   };
-  lineStatusCache.set(line.yahooUrl, { value: status, expiresAt: Date.now() + CACHE_TTL_MS });
+  lineStatusCache.set(sourceUrl, { value: status, expiresAt: Date.now() + CACHE_TTL_MS });
   return status;
+}
+
+function normalizeYahooTransitInfoUrl(rawUrl: string): string {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    throw new Error(`Invalid Yahoo transit URL: ${rawUrl}`);
+  }
+
+  const match = url.pathname.match(/^\/diainfo\/(\d+)\/(\d+)\/?$/);
+  if (url.protocol !== "https:" || url.hostname !== "transit.yahoo.co.jp" || !match) {
+    throw new Error(`Unsupported Yahoo transit URL: ${rawUrl}`);
+  }
+
+  return `https://transit.yahoo.co.jp/diainfo/${match[1]}/${match[2]}`;
 }
 
 async function fetchText(url: string): Promise<string> {
@@ -84,39 +109,40 @@ async function fetchText(url: string): Promise<string> {
   }
 }
 
-function parseYahooTrainInfo(html: string): Pick<TrainLineStatus, "status" | "level" | "note"> {
+function parseYahooTrainInfo(
+  html: string,
+): Pick<TrainLineStatus, "status" | "level" | "note"> & { sourceName: string } {
   const $ = load(html);
-  const heading = $(".elmTblLstLine h1").first().text().trim();
-  const statusText = $(
-    ".elmTblLstLine .icnNormalLarge, .elmTblLstLine .icnAlertLarge, .elmTblLstLine .icnCautionLarge",
-  )
-    .first()
-    .text()
-    .trim();
+  const sourceName = cleanText($(".labelLarge h1.title").first().text());
+  const statusRoot = $("#mdServiceStatus").first();
 
-  const status = statusText || inferStatus($("body").text());
-  if (!status) {
-    throw new Error(`Yahoo transit response is not parseable${heading ? `: ${heading}` : ""}`);
+  if (!sourceName || !statusRoot.length) {
+    throw new Error("Yahoo transit response is not parseable");
   }
 
-  const note = $(".elmTblLstLine p, #mdServiceStatus p, .trouble p")
-    .map((_, element) => $(element).text().replace(/\s+/g, " ").trim())
-    .get()
-    .filter((t) => t && t !== status)
-    .join(" ") || undefined;
+  const status = cleanText(statusRoot.find("dt").first().text());
+  if (!status) {
+    throw new Error(`Yahoo transit response has no status: ${sourceName}`);
+  }
+
+  const note =
+    statusRoot
+      .find("dd p")
+      .map((_, element) => cleanText($(element).text()))
+      .get()
+      .filter((text) => text && text !== status)
+      .join(" ") || undefined;
 
   return {
+    sourceName,
     status,
     level: status === "平常運転" ? "ok" : "warn",
     note,
   };
 }
 
-function inferStatus(text: string): string | undefined {
-  if (text.includes("平常運転")) return "平常運転";
-  if (text.includes("運転見合わせ")) return "運転見合わせ";
-  if (text.includes("遅延")) return "遅延";
-  return undefined;
+function cleanText(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
 }
 
 serve(

@@ -96,7 +96,7 @@ function LineStatusSection({ lines }: { lines: DashboardData["trains"]["lines"] 
   return (
     <div className="grid gap-2">
       {issueLines.map((line) => (
-        <div key={line.id} className="rounded-lg bg-[#f9f8f3] p-3">
+        <div key={line.sourceUrl} className="rounded-lg bg-[#f9f8f3] p-3">
           <div className="flex flex-wrap items-center gap-2">
             <StatusDot level={line.level} />
             <span className="font-semibold text-[#1f2024]">{line.name}</span>
@@ -110,7 +110,7 @@ function LineStatusSection({ lines }: { lines: DashboardData["trains"]["lines"] 
       {okLines.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 pt-0.5">
           {okLines.map((line) => (
-            <span key={line.id} className="flex items-center gap-1.5 text-sm text-[#9aa0aa]">
+            <span key={line.sourceUrl} className="flex items-center gap-1.5 text-sm text-[#9aa0aa]">
               <StatusDot level="ok" />
               {line.name}
             </span>
