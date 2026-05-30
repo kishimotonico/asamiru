@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => {
       port: process.env.PORT ? parseInt(process.env.PORT) : 5173,
       proxy: {
         "/api": {
-          target: env.VITE_API_ORIGIN ?? "http://asa-api.localhost:1355",
+          target: env.VITE_API_ORIGIN ?? "http://localhost:8787",
           changeOrigin: true,
         },
       },
