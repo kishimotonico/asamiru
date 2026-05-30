@@ -2,17 +2,14 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { load } from "cheerio";
-import { type TrainLineStatus, type TrainStatusResponse, watchedTrainLines } from "@asamiru/shared";
+import type { TrainLineStatus, TrainStatusResponse, WatchedLine } from "@asamiru/shared";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const CACHE_TTL_MS = 2 * 60 * 1000;
-const ERROR_TTL_MS = 30 * 1000;
 const FETCH_TIMEOUT_MS = 5000;
 const USER_AGENT = "asamiru/0.1 personal dashboard";
 
-let trainStatusCache: { value: TrainStatusResponse; expiresAt: number } | undefined;
-let trainStatusErrorCache: { expiresAt: number } | undefined;
-let trainStatusInflight: Promise<TrainStatusResponse> | undefined;
+const lineStatusCache = new Map<string, { value: TrainLineStatus; expiresAt: number }>();
 
 const app = new Hono();
 
@@ -25,67 +22,45 @@ app.use(
 
 app.get("/api/health", (c) => c.json({ ok: true }));
 
-app.get("/api/train-status", async (c) => {
-  const response = await getTrainStatus();
+app.post("/api/train-status", async (c) => {
+  const body = await c.req.json<{ lines: WatchedLine[] }>();
+  const lines = Array.isArray(body?.lines) ? body.lines : [];
+
+  const results = await Promise.allSettled(lines.map((line) => fetchLineStatus(line)));
+  const resolved: TrainLineStatus[] = [];
+  for (const result of results) {
+    if (result.status === "fulfilled") {
+      resolved.push(result.value);
+    } else {
+      console.error("fetchLineStatus failed:", result.reason);
+    }
+  }
+
+  const response: TrainStatusResponse = {
+    lines: resolved,
+    source: "yahoo-transit",
+    fetchedAt: new Date().toISOString(),
+  };
   c.header("Cache-Control", "public, max-age=30");
   return c.json(response);
 });
 
-async function getTrainStatus(): Promise<TrainStatusResponse> {
-  const now = Date.now();
-  if (trainStatusCache && trainStatusCache.expiresAt > now) {
-    return trainStatusCache.value;
-  }
-  if (trainStatusErrorCache && trainStatusErrorCache.expiresAt > now) {
-    throw new Error("train status fetch in backoff period");
-  }
-  if (trainStatusInflight) {
-    return trainStatusInflight;
+async function fetchLineStatus(line: WatchedLine): Promise<TrainLineStatus> {
+  const cached = lineStatusCache.get(line.yahooUrl);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
   }
 
-  trainStatusInflight = Promise.allSettled(watchedTrainLines.map(fetchLineStatus))
-    .then((results) => {
-      const lines: TrainLineStatus[] = [];
-      for (const result of results) {
-        if (result.status === "fulfilled") {
-          lines.push(result.value);
-        } else {
-          console.error("fetchLineStatus failed:", result.reason);
-        }
-      }
-      if (lines.length === 0) {
-        throw new Error("all train line fetches failed");
-      }
-      const value: TrainStatusResponse = {
-        lines,
-        source: "yahoo-transit",
-        fetchedAt: new Date().toISOString(),
-      };
-      trainStatusCache = { value, expiresAt: Date.now() + CACHE_TTL_MS };
-      return value;
-    })
-    .catch((err: unknown) => {
-      trainStatusErrorCache = { expiresAt: Date.now() + ERROR_TTL_MS };
-      throw err;
-    })
-    .finally(() => {
-      trainStatusInflight = undefined;
-    });
-
-  return trainStatusInflight;
-}
-
-async function fetchLineStatus(line: (typeof watchedTrainLines)[number]): Promise<TrainLineStatus> {
   const html = await fetchText(line.yahooUrl);
   const parsed = parseYahooTrainInfo(html);
-
-  return {
-    id: line.id,
+  const status: TrainLineStatus = {
     name: line.name,
     sourceUrl: line.yahooUrl,
     checkedAt: new Date().toISOString(),
     ...parsed,
   };
+  lineStatusCache.set(line.yahooUrl, { value: status, expiresAt: Date.now() + CACHE_TTL_MS });
+  return status;
 }
 
 async function fetchText(url: string): Promise<string> {

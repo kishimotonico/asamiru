@@ -1,10 +1,13 @@
 import { atomWithStorage } from "jotai/utils";
+import type { WatchedLine } from "@asamiru/shared";
 import { mergedStorage } from "./mergedStorage";
+
+export type { WatchedLine };
 
 export type TrainsSettings = {
   boardingStation: string;
   displayCount: number;
-  watchedLineIds: string[];
+  watchedLines: WatchedLine[];
 };
 
 export const KEIO_STATIONS = [
@@ -21,7 +24,12 @@ export const KEIO_STATIONS = [
 const DEFAULT_TRAINS_SETTINGS: TrainsSettings = {
   boardingStation: "明大前",
   displayCount: 3,
-  watchedLineIds: ["keio", "chuo", "sobu", "tama-monorail"],
+  watchedLines: [
+    { name: "京王線", yahooUrl: "https://transit.yahoo.co.jp/diainfo/102/0" },
+    { name: "中央線", yahooUrl: "https://transit.yahoo.co.jp/diainfo/38/0" },
+    { name: "総武線", yahooUrl: "https://transit.yahoo.co.jp/diainfo/40/0" },
+    { name: "多摩モノレール", yahooUrl: "https://transit.yahoo.co.jp/diainfo/137/0" },
+  ],
 };
 
 export const trainsSettingsAtom = atomWithStorage<TrainsSettings>(

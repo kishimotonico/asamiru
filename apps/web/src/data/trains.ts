@@ -110,7 +110,6 @@ const STATION_ORDER_BY_NAME: ReadonlyMap<string, number> = new Map(
 
 type FetchTrainsOptions = {
   boardingStation: string;
-  displayCount?: number;
   loadDia: (trainId: string) => Promise<DiaResponse>;
   now?: Date;
   signal?: AbortSignal;
@@ -120,7 +119,9 @@ type FetchDiaOptions = {
   signal?: AbortSignal;
 };
 
-export async function fetchTrains({ boardingStation, displayCount = 3, loadDia, now = new Date(), signal }: FetchTrainsOptions): Promise<DashboardData["trains"]> {
+const DISPLAY_LIMIT_PER_DIRECTION = 6;
+
+export async function fetchTrains({ boardingStation, loadDia, now = new Date(), signal }: FetchTrainsOptions): Promise<DashboardData["trains"]> {
   const directionFilter = "both";
 
   const boardingOrder = stationOrder(boardingStation);
@@ -135,7 +136,7 @@ export async function fetchTrains({ boardingStation, displayCount = 3, loadDia, 
     signal?.throwIfAborted();
 
     const direction = directionKey(train.ki, "");
-    if ((validCounts.get(direction) ?? 0) >= displayCount) {
+    if ((validCounts.get(direction) ?? 0) >= DISPLAY_LIMIT_PER_DIRECTION) {
       continue;
     }
 
@@ -178,7 +179,7 @@ export async function fetchTrains({ boardingStation, displayCount = 3, loadDia, 
 
   return {
     station: boardingStation,
-    departures: groupDepartures(candidates, displayCount),
+    departures: groupDepartures(candidates),
     lines: [],
   };
 }
@@ -253,7 +254,7 @@ export async function fetchTrainDia(trainId: string, { signal }: FetchDiaOptions
   return value;
 }
 
-function groupDepartures(candidates: TrainCandidate[], displayCount: number): DashboardData["trains"]["departures"] {
+function groupDepartures(candidates: TrainCandidate[]): DashboardData["trains"]["departures"] {
   const grouped = new Map<string, TrainCandidate[]>();
 
   for (const candidate of candidates) {
@@ -269,7 +270,7 @@ function groupDepartures(candidates: TrainCandidate[], displayCount: number): Da
         direction,
         trains
           .sort((a, b) => a.estimatedMinutes - b.estimatedMinutes || a.trainId.localeCompare(b.trainId))
-          .slice(0, displayCount)
+          .slice(0, DISPLAY_LIMIT_PER_DIRECTION)
           .map((train) => ({
             time: formatMinutes(train.estimatedMinutes),
             scheduled: train.delay > 0 ? formatMinutes(train.scheduledMinutes) : undefined,

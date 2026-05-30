@@ -1,4 +1,5 @@
 import { type QueryClient, queryOptions } from "@tanstack/react-query";
+import type { WatchedLine } from "@asamiru/shared";
 import { fetchTrainStatus } from "../data/trainStatus";
 import { fetchTrainDia, fetchTrains } from "../data/trains";
 import { fetchWeather } from "../data/weather";
@@ -20,10 +21,10 @@ export function weatherQueryOptions(settings: WeatherSettings) {
   });
 }
 
-export function trainStatusQueryOptions() {
+export function trainStatusQueryOptions(watchedLines: WatchedLine[]) {
   return queryOptions({
-    queryKey: ["dashboard", "train-status"],
-    queryFn: ({ signal }) => fetchTrainStatus({ signal }),
+    queryKey: ["dashboard", "train-status", watchedLines.map((l) => l.yahooUrl)],
+    queryFn: ({ signal }) => fetchTrainStatus(watchedLines, { signal }),
     staleTime: TRAIN_STATUS_INTERVAL_MS,
     refetchInterval: TRAIN_STATUS_INTERVAL_MS,
     refetchIntervalInBackground: true,
@@ -32,11 +33,10 @@ export function trainStatusQueryOptions() {
 
 export function trainsQueryOptions(queryClient: QueryClient, settings: TrainsSettings) {
   return queryOptions({
-    queryKey: ["dashboard", "trains", { boardingStation: settings.boardingStation, displayCount: settings.displayCount }],
+    queryKey: ["dashboard", "trains", { boardingStation: settings.boardingStation }],
     queryFn: ({ signal }) =>
       fetchTrains({
         boardingStation: settings.boardingStation,
-        displayCount: settings.displayCount,
         signal,
         loadDia: (trainId) => queryClient.fetchQuery(trainDiaQueryOptions(trainId)),
       }),

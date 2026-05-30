@@ -69,13 +69,16 @@ function TrainsDataCard({ className }: { className?: string }) {
   const queryClient = useQueryClient();
   const settings = useAtomValue(trainsSettingsAtom);
   const trains = useSuspenseQuery(trainsQueryOptions(queryClient, settings));
-  const trainStatus = useQuery(trainStatusQueryOptions());
-  const filteredLines = (trainStatus.data?.lines ?? []).filter((l) =>
-    settings.watchedLineIds.includes(l.id),
+  const trainStatus = useQuery(trainStatusQueryOptions(settings.watchedLines));
+  const cappedDepartures = Object.fromEntries(
+    Object.entries(trains.data.departures).map(([dir, deps]) => [
+      dir,
+      deps.slice(0, settings.displayCount),
+    ]),
   );
   return (
     <TrainsCard
-      data={{ ...trains.data, lines: filteredLines }}
+      data={{ ...trains.data, departures: cappedDepartures, lines: trainStatus.data?.lines ?? [] }}
       error={trains.error ?? trainStatus.error}
       refreshing={trains.isFetching || trainStatus.isFetching}
       className={className}
