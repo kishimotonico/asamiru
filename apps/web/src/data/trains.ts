@@ -332,11 +332,10 @@ async function fetchTraffic(signal?: AbortSignal): Promise<TrafficResponse> {
   }
 
   const value = (await response.json()) as TrafficResponse;
-  if (!Array.isArray(value.TS) || !Array.isArray(value.TB)) {
-    throw new Error("opentidkeio traffic response is incomplete");
-  }
-
-  return value;
+  return {
+    TS: Array.isArray(value.TS) ? value.TS : [],
+    TB: Array.isArray(value.TB) ? value.TB : [],
+  };
 }
 
 export async function fetchTrainDia(trainId: string, { signal }: FetchDiaOptions = {}): Promise<DiaResponse> {
