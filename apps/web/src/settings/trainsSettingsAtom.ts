@@ -1,4 +1,5 @@
 import { atomWithStorage } from "jotai/utils";
+import { mergedStorage } from "./mergedStorage";
 
 export type TrainsSettings = {
   boardingStation: string;
@@ -17,8 +18,14 @@ export const KEIO_STATIONS = [
   "京王永山", "京王多摩センター", "京王堀之内", "南大沢", "多摩境", "橋本",
 ] as const;
 
-export const trainsSettingsAtom = atomWithStorage<TrainsSettings>("asamiru-trains-settings", {
+const DEFAULT_TRAINS_SETTINGS: TrainsSettings = {
   boardingStation: "明大前",
   displayCount: 3,
   watchedLineIds: ["keio", "chuo", "sobu", "tama-monorail"],
-});
+};
+
+export const trainsSettingsAtom = atomWithStorage<TrainsSettings>(
+  "asamiru-trains-settings",
+  DEFAULT_TRAINS_SETTINGS,
+  mergedStorage(DEFAULT_TRAINS_SETTINGS),
+);
