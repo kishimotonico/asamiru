@@ -1,4 +1,15 @@
-import type { DashboardData } from "../dashboard/types";
+import type { RailDeparturesResponse } from "@asamiru/shared";
+import {
+  recordDeparturesCalculated,
+  recordDeparturesTrafficCacheHit,
+  recordDeparturesTrafficCacheMiss,
+  recordDeparturesDiaCacheHit,
+  recordDeparturesDiaCacheMiss,
+  recordDeparturesDiaRequest,
+  recordDeparturesStopCacheHit,
+  recordDeparturesStopCacheMiss,
+  recordDeparturesTrafficRequest,
+} from "./metrics.js";
 
 type TrafficResponse = {
   TS?: TrafficPosition[];
@@ -21,7 +32,7 @@ type TrainPosition = {
   ik_tr?: string;
 };
 
-export type DiaResponse = {
+type DiaResponse = {
   dy?: DiaStop[];
 };
 
@@ -60,6 +71,8 @@ const DIA_URL_BASE = "https://i.opentidkeio.jp/dia/";
 const TARGET_LINES = new Set(["K", "S"]);
 const SERVICE_DAY_ROLLOVER_MINUTES = 4 * 60;
 const MAX_DIA_CHECKS_CAP_PER_DIRECTION = 10;
+const DIA_TTL_MS = 12 * 60 * 60 * 1000;
+const TRAFFIC_TTL_MS = 90 * 1000;
 const SAGAMIHARA_LINE_DESTINATIONS = new Set(["048", "054"]);
 const HACHIOJI_TAKAO_DESTINATIONS = new Set(["027", "032", "036", "037", "043"]);
 const SAGAMIHARA_LINE_STATIONS = new Set([
@@ -99,8 +112,6 @@ const HACHIOJI_TAKAO_LINE_STATIONS = new Set([
   "高尾",
   "高尾山口",
 ]);
-const stopCache = new Map<string, StopCacheValue>();
-let stopCacheServiceDate: string | undefined;
 const STATION_ORDER_BY_NAME: ReadonlyMap<string, number> = new Map(
   [
     ["新宿", 1],
@@ -158,26 +169,24 @@ const STATION_ORDER_BY_NAME: ReadonlyMap<string, number> = new Map(
   ] as const,
 );
 
-type FetchTrainsOptions = {
+const stopCache = new Map<string, StopCacheValue>();
+const diaCache = new Map<string, { value: DiaResponse; expiresAt: number }>();
+let stopCacheServiceDate: string | undefined;
+let trafficCache: { value: TrafficResponse; expiresAt: number } | undefined;
+
+export type FetchDeparturesOptions = {
   boardingStation: string;
   displayCount: number;
-  loadDia: (trainId: string, serviceDate: string) => Promise<DiaResponse>;
   now?: Date;
   signal?: AbortSignal;
 };
 
-type FetchDiaOptions = {
-  signal?: AbortSignal;
-};
-
-export async function fetchTrains({
+export async function fetchDepartures({
   boardingStation,
   displayCount,
-  loadDia,
   now = new Date(),
   signal,
-}: FetchTrainsOptions): Promise<DashboardData["trains"]> {
-  const directionFilter = "both";
+}: FetchDeparturesOptions): Promise<RailDeparturesResponse> {
   const displayLimit = normalizedDisplayCount(displayCount);
   const maxDiaChecks = maxDiaChecksPerDirection(displayLimit);
   const serviceDate = serviceDateKey(now);
@@ -185,12 +194,13 @@ export async function fetchTrains({
 
   const boardingOrder = stationOrder(boardingStation);
   const traffic = await fetchTraffic(signal);
-  const positionedTrains = collectUpcomingTrains(traffic, boardingStation, boardingOrder, directionFilter);
+  const positionedTrains = collectUpcomingTrains(traffic, boardingStation, boardingOrder);
   const currentMinutes = currentServiceDayMinutes(now);
   const candidates: TrainCandidate[] = [];
   const validCounts = new Map<string, number>();
   const diaCheckCounts = new Map<string, number>();
   const failures: string[] = [];
+  let resolvedStopChecks = 0;
 
   for (const { train, trainId } of positionedTrains) {
     signal?.throwIfAborted();
@@ -200,49 +210,63 @@ export async function fetchTrains({
       continue;
     }
 
+    let stop: StopCacheValue | undefined;
     try {
-      const stop = await resolveStopInfo({
+      stop = await resolveStopInfo({
         trainId,
         boardingStation,
         direction,
         serviceDate,
-        loadDia,
+        signal,
         diaCheckCounts,
         maxDiaChecks,
       });
-      if (!stop?.stops) {
-        continue;
+      if (stop) {
+        resolvedStopChecks += 1;
       }
-
-      const delay = parseDelay(train.dl);
-      const estimatedMinutes = stop.scheduledMinutes + delay;
-      if (estimatedMinutes < currentMinutes) {
-        continue;
-      }
-
-      const dest = stop.destination || destinationLabel(train.ik_tr || train.ik);
-      candidates.push({
-        trainId,
-        direction,
-        kind: serviceLabel(train.sy_tr || train.sy),
-        dest,
-        scheduledMinutes: stop.scheduledMinutes,
-        estimatedMinutes,
-        delay,
-      });
-      validCounts.set(direction, (validCounts.get(direction) ?? 0) + 1);
     } catch (error) {
       if (signal?.aborted) {
         throw error;
       }
       failures.push(`${trainId}: ${errorMessage(error)}`);
+      continue;
     }
+    if (!stop?.stops) {
+      continue;
+    }
+
+    const delay = parseDelay(train.dl);
+    const estimatedMinutes = stop.scheduledMinutes + delay;
+    if (estimatedMinutes < currentMinutes) {
+      continue;
+    }
+
+    const dest = stop.destination || destinationLabel(train.ik_tr || train.ik);
+    candidates.push({
+      trainId,
+      direction,
+      kind: serviceLabel(train.sy_tr || train.sy),
+      dest,
+      scheduledMinutes: stop.scheduledMinutes,
+      estimatedMinutes,
+      delay,
+    });
+    validCounts.set(direction, (validCounts.get(direction) ?? 0) + 1);
   }
 
+  if (candidates.length === 0 && failures.length > 0 && resolvedStopChecks === 0) {
+    throw new Error(`All departure candidates failed: ${failures.join("; ")}`);
+  }
+  if (failures.length > 0) {
+    console.error("fetchDepartures skipped candidates:", failures);
+  }
+
+  const departures = groupDepartures(candidates, displayLimit);
+  const departureCount = Object.values(departures).reduce((total, group) => total + group.length, 0);
+  recordDeparturesCalculated(boardingStation, departureCount);
   return {
     station: boardingStation,
-    departures: groupDepartures(candidates, displayLimit),
-    lines: [],
+    departures,
   };
 }
 
@@ -251,7 +275,7 @@ async function resolveStopInfo({
   boardingStation,
   direction,
   serviceDate,
-  loadDia,
+  signal,
   diaCheckCounts,
   maxDiaChecks,
 }: {
@@ -259,15 +283,17 @@ async function resolveStopInfo({
   boardingStation: string;
   direction: string;
   serviceDate: string;
-  loadDia: (trainId: string, serviceDate: string) => Promise<DiaResponse>;
+  signal?: AbortSignal;
   diaCheckCounts: Map<string, number>;
   maxDiaChecks: number;
 }): Promise<StopCacheValue | undefined> {
   const cacheKey = stopCacheKey(serviceDate, trainId, boardingStation);
   const cached = stopCache.get(cacheKey);
   if (cached) {
+    recordDeparturesStopCacheHit(trainId);
     return cached;
   }
+  recordDeparturesStopCacheMiss(trainId);
 
   const checks = diaCheckCounts.get(direction) ?? 0;
   if (checks >= maxDiaChecks) {
@@ -275,7 +301,7 @@ async function resolveStopInfo({
   }
   diaCheckCounts.set(direction, checks + 1);
 
-  const dia = await loadDia(trainId, serviceDate);
+  const dia = await fetchDia(trainId, serviceDate, signal);
   const stopInfo = stopInfoFromDia(dia, boardingStation);
   stopCache.set(cacheKey, stopInfo);
   return stopInfo;
@@ -285,7 +311,6 @@ function collectUpcomingTrains(
   traffic: TrafficResponse,
   boardingStation: string,
   boardingOrder: number,
-  directionFilter: "0" | "1" | "both",
 ): PositionedTrain[] {
   const byDirection = new Map<string, PositionedTrain[]>();
 
@@ -301,7 +326,7 @@ function collectUpcomingTrains(
 
     for (const train of position.ps ?? []) {
       const trainId = train.tr?.trim();
-      if (!trainId || (directionFilter !== "both" && train.ki !== directionFilter)) {
+      if (!trainId) {
         continue;
       }
       if (isProbablyUnreachableBranch(boardingStation, train)) {
@@ -326,19 +351,37 @@ function collectUpcomingTrains(
 }
 
 async function fetchTraffic(signal?: AbortSignal): Promise<TrafficResponse> {
+  if (trafficCache && trafficCache.expiresAt > Date.now()) {
+    recordDeparturesTrafficCacheHit();
+    return trafficCache.value;
+  }
+
+  recordDeparturesTrafficCacheMiss();
+  recordDeparturesTrafficRequest();
   const response = await fetch(TRAFFIC_URL, { signal });
   if (!response.ok) {
     throw new Error(`opentidkeio traffic returned ${response.status}`);
   }
 
   const value = (await response.json()) as TrafficResponse;
-  return {
+  const normalized = {
     TS: Array.isArray(value.TS) ? value.TS : [],
     TB: Array.isArray(value.TB) ? value.TB : [],
   };
+  trafficCache = { value: normalized, expiresAt: Date.now() + TRAFFIC_TTL_MS };
+  return normalized;
 }
 
-export async function fetchTrainDia(trainId: string, { signal }: FetchDiaOptions = {}): Promise<DiaResponse> {
+async function fetchDia(trainId: string, serviceDate: string, signal?: AbortSignal): Promise<DiaResponse> {
+  const cacheKey = `${serviceDate}:${trainId}`;
+  const cached = diaCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    recordDeparturesDiaCacheHit(trainId);
+    return cached.value;
+  }
+
+  recordDeparturesDiaCacheMiss(trainId);
+  recordDeparturesDiaRequest(trainId);
   const response = await fetch(`${DIA_URL_BASE}${encodeURIComponent(trainId)}.json`, { signal });
   if (!response.ok) {
     throw new Error(`opentidkeio dia ${trainId} returned ${response.status}`);
@@ -348,11 +391,11 @@ export async function fetchTrainDia(trainId: string, { signal }: FetchDiaOptions
   if (!Array.isArray(value.dy)) {
     throw new Error(`opentidkeio dia ${trainId} response is incomplete`);
   }
-
+  diaCache.set(cacheKey, { value, expiresAt: Date.now() + DIA_TTL_MS });
   return value;
 }
 
-function groupDepartures(candidates: TrainCandidate[], displayLimit: number): DashboardData["trains"]["departures"] {
+function groupDepartures(candidates: TrainCandidate[], displayLimit: number): RailDeparturesResponse["departures"] {
   const grouped = new Map<string, TrainCandidate[]>();
 
   for (const candidate of candidates) {
@@ -532,7 +575,6 @@ function directionKey(direction: string | undefined, dest: string): string {
   }
   return dest ? `${dest}方面` : "方面未設定";
 }
-
 
 function serviceLabel(code: string | undefined): string {
   switch (code) {

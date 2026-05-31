@@ -1,13 +1,13 @@
 import type { CSSProperties } from "react";
 import { useState } from "react";
-import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { AsyncCardBoundary } from "./AsyncCardBoundary";
 import { CalendarCard } from "./CalendarCard";
 import { ClockCard } from "./ClockCard";
 import { WeatherCard, WeatherErrorCard, WeatherLoadingCard } from "./WeatherCard";
 import { TrainsCard, TrainsErrorCard, TrainsLoadingCard } from "./TrainsCard";
-import { trainStatusQueryOptions, trainsQueryOptions, weatherQueryOptions } from "./dashboardQueries";
+import { departuresQueryOptions, lineStatusQueryOptions, weatherQueryOptions } from "./dashboardQueries";
 import { weatherSettingsAtom } from "../settings/weatherSettingsAtom";
 import { trainsSettingsAtom } from "../settings/trainsSettingsAtom";
 import { SettingsModal } from "../settings/SettingsModal";
@@ -65,21 +65,20 @@ function WeatherDataCard({ className }: { className?: string }) {
 }
 
 function TrainsDataCard({ className }: { className?: string }) {
-  const queryClient = useQueryClient();
   const settings = useAtomValue(trainsSettingsAtom);
-  const trains = useSuspenseQuery(trainsQueryOptions(queryClient, settings));
-  const trainStatus = useQuery(trainStatusQueryOptions(settings.watchedLines));
+  const departures = useSuspenseQuery(departuresQueryOptions(settings));
+  const lineStatus = useQuery(lineStatusQueryOptions(settings.watchedLines));
   const cappedDepartures = Object.fromEntries(
-    Object.entries(trains.data.departures).map(([dir, deps]) => [
+    Object.entries(departures.data.departures).map(([dir, deps]) => [
       dir,
       deps.slice(0, settings.displayCount),
     ]),
   );
   return (
     <TrainsCard
-      data={{ ...trains.data, departures: cappedDepartures, lines: trainStatus.data?.lines ?? [] }}
-      error={trains.error ?? trainStatus.error}
-      refreshing={trains.isFetching || trainStatus.isFetching}
+      data={{ ...departures.data, departures: cappedDepartures, lines: lineStatus.data?.lines ?? [] }}
+      error={departures.error ?? lineStatus.error}
+      refreshing={departures.isFetching || lineStatus.isFetching}
       className={className}
     />
   );

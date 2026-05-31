@@ -1,15 +1,14 @@
-import { type QueryClient, queryOptions } from "@tanstack/react-query";
+import { queryOptions } from "@tanstack/react-query";
 import type { WatchedLine } from "@asamiru/shared";
-import { fetchTrainStatus } from "../data/trainStatus";
-import { fetchTrainDia, fetchTrains } from "../data/trains";
+import { fetchDepartures } from "../data/departures";
+import { fetchLineStatus } from "../data/lineStatus";
 import { fetchWeather } from "../data/weather";
 import type { WeatherSettings } from "../settings/weatherSettingsAtom";
 import type { TrainsSettings } from "../settings/trainsSettingsAtom";
 
 const WEATHER_INTERVAL_MS = 10 * 60 * 1000;
-const TRAINS_INTERVAL_MS = 90 * 1000;
-const TRAIN_STATUS_INTERVAL_MS = 2 * 60 * 1000;
-const DIA_TTL_MS = 12 * 60 * 60 * 1000;
+const DEPARTURES_INTERVAL_MS = 90 * 1000;
+const LINE_STATUS_INTERVAL_MS = 5 * 60 * 1000;
 
 export function weatherQueryOptions(settings: WeatherSettings) {
   return queryOptions({
@@ -21,37 +20,27 @@ export function weatherQueryOptions(settings: WeatherSettings) {
   });
 }
 
-export function trainStatusQueryOptions(watchedLines: WatchedLine[]) {
+export function lineStatusQueryOptions(watchedLines: WatchedLine[]) {
   return queryOptions({
-    queryKey: ["dashboard", "train-status", watchedLines.map((l) => l.yahooUrl)],
-    queryFn: ({ signal }) => fetchTrainStatus(watchedLines, { signal }),
-    staleTime: TRAIN_STATUS_INTERVAL_MS,
-    refetchInterval: TRAIN_STATUS_INTERVAL_MS,
+    queryKey: ["dashboard", "line-status", watchedLines.map((l) => l.yahooUrl)],
+    queryFn: ({ signal }) => fetchLineStatus(watchedLines, { signal }),
+    staleTime: LINE_STATUS_INTERVAL_MS,
+    refetchInterval: LINE_STATUS_INTERVAL_MS,
     refetchIntervalInBackground: true,
   });
 }
 
-export function trainsQueryOptions(queryClient: QueryClient, settings: TrainsSettings) {
+export function departuresQueryOptions(settings: TrainsSettings) {
   return queryOptions({
-    queryKey: ["dashboard", "trains", { boardingStation: settings.boardingStation, displayCount: settings.displayCount }],
+    queryKey: ["dashboard", "departures", { boardingStation: settings.boardingStation, displayCount: settings.displayCount }],
     queryFn: ({ signal }) =>
-      fetchTrains({
+      fetchDepartures({
         boardingStation: settings.boardingStation,
         displayCount: settings.displayCount,
         signal,
-        loadDia: (trainId, serviceDate) => queryClient.fetchQuery(trainDiaQueryOptions(trainId, serviceDate)),
       }),
-    staleTime: TRAINS_INTERVAL_MS,
-    refetchInterval: TRAINS_INTERVAL_MS,
+    staleTime: DEPARTURES_INTERVAL_MS,
+    refetchInterval: DEPARTURES_INTERVAL_MS,
     refetchIntervalInBackground: true,
-  });
-}
-
-function trainDiaQueryOptions(trainId: string, serviceDate: string) {
-  return queryOptions({
-    queryKey: ["keio", "dia", serviceDate, trainId],
-    queryFn: ({ signal }) => fetchTrainDia(trainId, { signal }),
-    staleTime: DIA_TTL_MS,
-    gcTime: DIA_TTL_MS,
   });
 }

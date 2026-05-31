@@ -14,10 +14,57 @@ export type TrainLineStatus = {
   checkedAt: string;
 };
 
-export type TrainStatusResponse = {
+export type LineStatusResponse = {
   lines: TrainLineStatus[];
   source: "yahoo-transit";
   fetchedAt: string;
+};
+
+export type TrainStatusResponse = LineStatusResponse;
+
+export type RailDeparture = {
+  time: string;
+  scheduled?: string;
+  kind: string;
+  dest: string;
+  delay: number;
+};
+
+export type RailDeparturesResponse = {
+  station: string;
+  departures: Record<string, RailDeparture[]>;
+};
+
+export type ApiDebugMetrics = {
+  lineStatus: {
+    requests: number;
+    cacheHits: number;
+    cacheMisses: number;
+    upstreamRequests: number;
+    lastFetchAt?: string;
+  };
+  departures: {
+    requests: number;
+    trafficRequests: number;
+    trafficCacheHits: number;
+    trafficCacheMisses: number;
+    diaRequests: number;
+    diaCacheHits: number;
+    diaCacheMisses: number;
+    stopCacheHits: number;
+    stopCacheMisses: number;
+    lastTrafficFetchAt?: string;
+    lastCalculatedAt?: string;
+  };
+  events: ApiDebugEvent[];
+  lastUpdatedAt: string;
+};
+
+export type ApiDebugEvent = {
+  at: string;
+  area: "api" | "lineStatus" | "departures";
+  event: string;
+  detail?: string;
 };
 
 function line(name: string, id: number): WatchedLine {
