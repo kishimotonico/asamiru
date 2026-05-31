@@ -72,7 +72,7 @@ const TARGET_LINES = new Set(["K", "S"]);
 const SERVICE_DAY_ROLLOVER_MINUTES = 4 * 60;
 const MAX_DIA_CHECKS_CAP_PER_DIRECTION = 10;
 const DIA_TTL_MS = 12 * 60 * 60 * 1000;
-const TRAFFIC_TTL_MS = 90 * 1000;
+const TRAFFIC_TTL_MS = 120 * 1000;
 const SAGAMIHARA_LINE_DESTINATIONS = new Set(["048", "054"]);
 const HACHIOJI_TAKAO_DESTINATIONS = new Set(["027", "032", "036", "037", "043"]);
 const SAGAMIHARA_LINE_STATIONS = new Set([
@@ -172,7 +172,9 @@ const STATION_ORDER_BY_NAME: ReadonlyMap<string, number> = new Map(
 const stopCache = new Map<string, StopCacheValue>();
 const diaCache = new Map<string, { value: DiaResponse; expiresAt: number }>();
 let stopCacheServiceDate: string | undefined;
+let diaCacheServiceDate: string | undefined;
 let trafficCache: { value: TrafficResponse; expiresAt: number } | undefined;
+let trafficInflight: Promise<TrafficResponse> | undefined;
 
 export type FetchDeparturesOptions = {
   boardingStation: string;
@@ -191,6 +193,7 @@ export async function fetchDepartures({
   const maxDiaChecks = maxDiaChecksPerDirection(displayLimit);
   const serviceDate = serviceDateKey(now);
   pruneStopCache(serviceDate);
+  pruneDiaCache(serviceDate);
 
   const boardingOrder = stationOrder(boardingStation);
   const traffic = await fetchTraffic(signal);
@@ -355,21 +358,30 @@ async function fetchTraffic(signal?: AbortSignal): Promise<TrafficResponse> {
     recordDeparturesTrafficCacheHit();
     return trafficCache.value;
   }
+  if (trafficInflight) {
+    return trafficInflight;
+  }
 
   recordDeparturesTrafficCacheMiss();
   recordDeparturesTrafficRequest();
-  const response = await fetch(TRAFFIC_URL, { signal });
-  if (!response.ok) {
-    throw new Error(`opentidkeio traffic returned ${response.status}`);
-  }
+  trafficInflight = fetch(TRAFFIC_URL, { signal })
+    .then(async (response) => {
+      if (!response.ok) {
+        throw new Error(`opentidkeio traffic returned ${response.status}`);
+      }
 
-  const value = (await response.json()) as TrafficResponse;
-  const normalized = {
-    TS: Array.isArray(value.TS) ? value.TS : [],
-    TB: Array.isArray(value.TB) ? value.TB : [],
-  };
-  trafficCache = { value: normalized, expiresAt: Date.now() + TRAFFIC_TTL_MS };
-  return normalized;
+      const value = (await response.json()) as TrafficResponse;
+      const normalized = {
+        TS: Array.isArray(value.TS) ? value.TS : [],
+        TB: Array.isArray(value.TB) ? value.TB : [],
+      };
+      trafficCache = { value: normalized, expiresAt: Date.now() + TRAFFIC_TTL_MS };
+      return normalized;
+    })
+    .finally(() => {
+      trafficInflight = undefined;
+    });
+  return trafficInflight;
 }
 
 async function fetchDia(trainId: string, serviceDate: string, signal?: AbortSignal): Promise<DiaResponse> {
@@ -505,6 +517,19 @@ function pruneStopCache(serviceDate: string): void {
 
   stopCache.clear();
   stopCacheServiceDate = serviceDate;
+}
+
+function pruneDiaCache(serviceDate: string): void {
+  if (diaCacheServiceDate === serviceDate) {
+    return;
+  }
+
+  for (const key of diaCache.keys()) {
+    if (!key.startsWith(`${serviceDate}:`)) {
+      diaCache.delete(key);
+    }
+  }
+  diaCacheServiceDate = serviceDate;
 }
 
 function serviceDateKey(now: Date): string {

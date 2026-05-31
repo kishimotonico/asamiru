@@ -78,16 +78,21 @@ app.post("/api/rail/departures", async (c) => {
   }
   recordDeparturesRequest(boardingStation, displayCount);
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     const response: RailDeparturesResponse = await fetchDepartures({
       boardingStation,
       displayCount,
+      signal: controller.signal,
     });
     c.header("Cache-Control", "public, max-age=60");
     return c.json(response);
   } catch (error) {
     console.error("fetchDepartures failed:", error);
     return c.json({ error: errorMessage(error) }, 502);
+  } finally {
+    clearTimeout(timeoutId);
   }
 });
 

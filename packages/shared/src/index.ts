@@ -20,8 +20,6 @@ export type LineStatusResponse = {
   fetchedAt: string;
 };
 
-export type TrainStatusResponse = LineStatusResponse;
-
 export type RailDeparture = {
   time: string;
   scheduled?: string;

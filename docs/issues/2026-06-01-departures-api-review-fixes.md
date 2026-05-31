@@ -92,3 +92,38 @@ async function fetchTraffic(signal?: AbortSignal): Promise<TrafficResponse> {
   return trafficInflight;
 }
 ```
+
+## 対応結果
+
+### 1. fetchDepartures にタイムアウトがない
+
+対応する。
+
+`/api/rail/departures` ハンドラーで `AbortController` と `setTimeout` を作成し、`fetchDepartures` に `signal` を渡すよう修正した。
+`fetchText` と同じ `FETCH_TIMEOUT_MS = 5000` を使い、`finally` で timeout を解除する。
+
+### 2. TrainStatusResponse 型エイリアスが未使用
+
+対応する。
+
+`packages/shared/src/index.ts` から未使用の `TrainStatusResponse` alias を削除した。
+
+### 3. TRAFFIC_TTL_MS をクライアントの refetchInterval より短くする
+
+指摘の目的には対応するが、提案値は変更する。
+
+クライアントの `DEPARTURES_INTERVAL_MS` は90秒なので、`TRAFFIC_TTL_MS` を60秒にすると単一クライアントでは毎回期限切れになりやすい。
+「クライアント更新ごとに毎回上流へ行かない」という目的に合わせ、`TRAFFIC_TTL_MS` は refetchInterval より長い120秒に変更した。
+
+### 4. diaCache の古いエントリを日付変更時に削除する
+
+対応する。
+
+`pruneDiaCache(serviceDate)` を追加し、`fetchDepartures` の冒頭で `stopCache` と同じタイミングで古い serviceDate の `diaCache` を削除する。
+
+### 5. fetchTraffic の thundering herd 対策
+
+対応する。
+
+`trafficInflight` を追加し、traffic キャッシュミス中の同時リクエストは同じ Promise を await するよう修正した。
+上流リクエスト完了または失敗後は `finally` で `trafficInflight` を解除する。
