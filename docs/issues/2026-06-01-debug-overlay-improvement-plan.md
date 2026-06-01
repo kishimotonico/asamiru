@@ -359,10 +359,6 @@ Codex が実装した内容。
 - `GET http://asa-api.localhost:1355/api/debug/metrics`
 - `POST http://asa-api.localhost:1355/api/rail/departures`
 - `POST http://asa-api.localhost:1355/api/rail/line-status`
-- portless の `asa-api` route が stale PID を保持していたため、最終確認は `PORT=8787 node apps/api/dist/index.js` で一時起動して実施。
-  - `GET http://localhost:8787/api/health`
-  - `POST http://localhost:8787/api/rail/departures`
-  - `GET http://localhost:8787/api/debug/metrics`
 - agent-browser で以下を確認。
   - 初期表示ではパネルが出ない。
   - 右下ホットゾーンの Debug ボタンで開ける。
@@ -370,3 +366,25 @@ Codex が実装した内容。
   - API Stats Table が表示される。
   - Event History に `API受信` / `外部API` / `Cache hit` / `Cache miss` / `計算` が表示される。
   - 行クリックで Event Detail が表示される。
+
+## フィードバック対応（2026-06-01）
+
+ユーザーフィードバックと Claude レビューを受けて追加修正した。
+
+- Event Detail の常時横並び表示を廃止し、Event History を全幅に戻した。
+- Event History の行クリックで、その行の下に詳細をアコーディオン展開する形へ変更した。
+- Event History の 1 行は「フロントからバックエンドへ投げた API 1 件」ではなく、「バックエンド処理中に発生した debug event 1 件」と明記した。
+- Related Events は「同じ backend request の中で発生した cache / upstream / calculation / error」と説明を追加した。
+- upstream event は Target 列に外部 API URL を表示し、URL を見れば送信先が分かる形にした。
+- UI の説明文は日本語にし、ラベルや kind は英語寄りに統一した。
+- metrics 初回自動取得が失敗時に無限リトライしないよう、成功失敗にかかわらず 1 回試行したら止めるよう変更した。
+- パネルを閉じて再度開いた場合は、開いたタイミングで再度 1 回だけ自動取得する。
+- upstream のネットワーク失敗も「外部 API へ送信を試みた回数」として `upstreamRequests` に含めるよう変更した。
+- stop cache の detail は `stops: boolean` ではなく `result: "stops" | "passes"` の要約にした。
+
+### 追加検証
+
+- `pnpm build`
+- `GET http://asa-api.localhost:1355/api/health`
+- `GET http://asa-api.localhost:1355/api/debug/metrics`
+- agent-browser で `http://asa.localhost:1355` を開き、`@` トグル、API Stats、全幅 Event History、Target 列の URL 表示を確認。

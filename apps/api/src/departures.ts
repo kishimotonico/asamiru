@@ -301,7 +301,7 @@ async function resolveStopInfo({
       api: DEPARTURES_API,
       target: cacheKey,
       summary: "Stop cache hit",
-      detail: { cache: "stop", trainId, boardingStation, stops: cached.stops },
+      detail: { cache: "stop", trainId, boardingStation, result: cached.stops ? "stops" : "passes" },
     });
     return cached;
   }

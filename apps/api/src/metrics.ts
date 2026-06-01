@@ -83,6 +83,14 @@ export async function withUpstream(
     return response;
   } catch (error) {
     recordDebugEvent({
+      kind: "upstream_request",
+      api,
+      target,
+      summary: "External API request failed",
+      durationMs: elapsedMs(startedAt),
+      detail,
+    });
+    recordDebugEvent({
       kind: "error",
       api,
       target,
