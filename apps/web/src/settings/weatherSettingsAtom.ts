@@ -17,4 +17,5 @@ export const weatherSettingsAtom = atomWithStorage<WeatherSettings>(
   "asamiru-weather-settings",
   DEFAULT_WEATHER_SETTINGS,
   mergedStorage(DEFAULT_WEATHER_SETTINGS),
+  { getOnInit: true },
 );

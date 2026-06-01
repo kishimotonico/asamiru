@@ -36,4 +36,5 @@ export const trainsSettingsAtom = atomWithStorage<TrainsSettings>(
   "asamiru-trains-settings",
   DEFAULT_TRAINS_SETTINGS,
   mergedStorage(DEFAULT_TRAINS_SETTINGS),
+  { getOnInit: true },
 );

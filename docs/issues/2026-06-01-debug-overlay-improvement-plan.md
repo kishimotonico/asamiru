@@ -388,3 +388,17 @@ Codex が実装した内容。
 - `GET http://asa-api.localhost:1355/api/health`
 - `GET http://asa-api.localhost:1355/api/debug/metrics`
 - agent-browser で `http://asa.localhost:1355` を開き、`@` トグル、API Stats、全幅 Event History、Target 列の URL 表示を確認。
+
+## 追加調査: 保存済み設定と初回リクエストの不一致（2026-06-02）
+
+別駅を指定しているのに `明大前` の発車情報 API が処理されているように見える件を調査した。
+
+- API 側は `POST /api/rail/departures` の `body.boardingStation` をそのまま `fetchDepartures` に渡しており、サーバー内で `明大前` へ差し替える経路は見つからなかった。
+- debug metrics には `京王堀之内` と `明大前` の backend request が混在していたため、複数タブ・別ブラウザプロファイル・初期化タイミングのいずれかが疑わしい。
+- `atomWithStorage` はデフォルトでは初期レンダーで `initialValue` を返し、mount 後に storage の値へ同期する。
+- `trainsSettingsAtom` の `initialValue` は `boardingStation: "明大前"` なので、保存済み設定が別駅でも、初回レンダー時に `明大前` の `departuresQueryOptions` が作られ、TanStack Query が API を送る可能性がある。
+
+対応:
+
+- `trainsSettingsAtom` に `{ getOnInit: true }` を指定し、初回レンダー前に localStorage の保存値を読むよう変更した。
+- 同じ初期化問題を避けるため、`weatherSettingsAtom` と `enabledModulesAtom` も `{ getOnInit: true }` に揃えた。
