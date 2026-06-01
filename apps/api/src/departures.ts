@@ -70,7 +70,8 @@ const TRAFFIC_URL = "https://i.opentidkeio.jp/data/traffic_info.json";
 const DIA_URL_BASE = "https://i.opentidkeio.jp/dia/";
 const TARGET_LINES = new Set(["K", "S"]);
 const SERVICE_DAY_ROLLOVER_MINUTES = 4 * 60;
-const MAX_DIA_CHECKS_CAP_PER_DIRECTION = 10;
+// Keep candidate exploration independent from small display counts so skipped trains do not starve results.
+const MAX_DIA_CHECKS_PER_DIRECTION = 10;
 const DIA_TTL_MS = 12 * 60 * 60 * 1000;
 const TRAFFIC_TTL_MS = 120 * 1000;
 const SAGAMIHARA_LINE_DESTINATIONS = new Set(["048", "054"]);
@@ -171,6 +172,7 @@ const STATION_ORDER_BY_NAME: ReadonlyMap<string, number> = new Map(
 
 const stopCache = new Map<string, StopCacheValue>();
 const diaCache = new Map<string, { value: DiaResponse; expiresAt: number }>();
+const diaInflight = new Map<string, Promise<DiaResponse>>();
 let stopCacheServiceDate: string | undefined;
 let diaCacheServiceDate: string | undefined;
 let trafficCache: { value: TrafficResponse; expiresAt: number } | undefined;
@@ -190,7 +192,7 @@ export async function fetchDepartures({
   signal,
 }: FetchDeparturesOptions): Promise<RailDeparturesResponse> {
   const displayLimit = normalizedDisplayCount(displayCount);
-  const maxDiaChecks = maxDiaChecksPerDirection(displayLimit);
+  const maxDiaChecks = MAX_DIA_CHECKS_PER_DIRECTION;
   const serviceDate = serviceDateKey(now);
   pruneStopCache(serviceDate);
   pruneDiaCache(serviceDate);
@@ -391,20 +393,32 @@ async function fetchDia(trainId: string, serviceDate: string, signal?: AbortSign
     recordDeparturesDiaCacheHit(trainId);
     return cached.value;
   }
+  const inflight = diaInflight.get(cacheKey);
+  if (inflight) {
+    recordDeparturesDiaCacheHit(trainId);
+    return inflight;
+  }
 
   recordDeparturesDiaCacheMiss(trainId);
   recordDeparturesDiaRequest(trainId);
-  const response = await fetch(`${DIA_URL_BASE}${encodeURIComponent(trainId)}.json`, { signal });
-  if (!response.ok) {
-    throw new Error(`opentidkeio dia ${trainId} returned ${response.status}`);
-  }
+  const request = fetch(`${DIA_URL_BASE}${encodeURIComponent(trainId)}.json`, { signal })
+    .then(async (response) => {
+      if (!response.ok) {
+        throw new Error(`opentidkeio dia ${trainId} returned ${response.status}`);
+      }
 
-  const value = (await response.json()) as DiaResponse;
-  if (!Array.isArray(value.dy)) {
-    throw new Error(`opentidkeio dia ${trainId} response is incomplete`);
-  }
-  diaCache.set(cacheKey, { value, expiresAt: Date.now() + DIA_TTL_MS });
-  return value;
+      const value = (await response.json()) as DiaResponse;
+      if (!Array.isArray(value.dy)) {
+        throw new Error(`opentidkeio dia ${trainId} response is incomplete`);
+      }
+      diaCache.set(cacheKey, { value, expiresAt: Date.now() + DIA_TTL_MS });
+      return value;
+    })
+    .finally(() => {
+      diaInflight.delete(cacheKey);
+    });
+  diaInflight.set(cacheKey, request);
+  return request;
 }
 
 function groupDepartures(candidates: TrainCandidate[], displayLimit: number): RailDeparturesResponse["departures"] {
@@ -489,10 +503,6 @@ function normalizedDisplayCount(displayCount: number): number {
   return Number.isFinite(displayCount) ? Math.max(1, Math.floor(displayCount)) : 1;
 }
 
-function maxDiaChecksPerDirection(displayCount: number): number {
-  return Math.min(MAX_DIA_CHECKS_CAP_PER_DIRECTION, Math.max(displayCount + 4, displayCount * 2));
-}
-
 function stopInfoFromDia(dia: DiaResponse, boardingStation: string): StopCacheValue {
   const stop = dia.dy?.find((item) => item.sn === boardingStation);
   if (!stop?.ht) {
@@ -527,6 +537,11 @@ function pruneDiaCache(serviceDate: string): void {
   for (const key of diaCache.keys()) {
     if (!key.startsWith(`${serviceDate}:`)) {
       diaCache.delete(key);
+    }
+  }
+  for (const key of diaInflight.keys()) {
+    if (!key.startsWith(`${serviceDate}:`)) {
+      diaInflight.delete(key);
     }
   }
   diaCacheServiceDate = serviceDate;
