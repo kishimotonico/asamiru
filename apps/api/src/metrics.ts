@@ -1,114 +1,181 @@
-import type { ApiDebugMetrics } from "@asamiru/shared";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { randomUUID } from "node:crypto";
+import { API_DEBUG_LABELS } from "@asamiru/shared";
+import type { ApiDebugApiStats, ApiDebugEvent, ApiDebugKind, ApiDebugMetrics, ApiDebugTotals } from "@asamiru/shared";
 
-const metrics: ApiDebugMetrics = {
-  lineStatus: {
-    requests: 0,
-    cacheHits: 0,
-    cacheMisses: 0,
-    upstreamRequests: 0,
-  },
-  departures: {
-    requests: 0,
-    trafficRequests: 0,
-    trafficCacheHits: 0,
-    trafficCacheMisses: 0,
-    diaRequests: 0,
-    diaCacheHits: 0,
-    diaCacheMisses: 0,
-    stopCacheHits: 0,
-    stopCacheMisses: 0,
-  },
-  events: [],
-  lastUpdatedAt: new Date(0).toISOString(),
+type DebugContext = {
+  correlationId: string;
+};
+
+type DebugEventInput = {
+  kind: ApiDebugKind;
+  api: string;
+  target: string;
+  summary: string;
+  detail?: Record<string, unknown>;
+  correlationId?: string;
+  durationMs?: number;
+  status?: number;
 };
 
 const MAX_EVENTS = 50;
+const contextStorage = new AsyncLocalStorage<DebugContext>();
 
-function touch(at = new Date().toISOString()) {
-  metrics.lastUpdatedAt = at;
+const totals: ApiDebugTotals = emptyTotals();
+const statsByApi = new Map<string, ApiDebugApiStats>();
+const events: ApiDebugEvent[] = [];
+let lastUpdatedAt = new Date(0).toISOString();
+
+export function runWithDebugContext<T>(correlationId: string, callback: () => T): T {
+  return contextStorage.run({ correlationId }, callback);
 }
 
-function pushEvent(area: ApiDebugMetrics["events"][number]["area"], event: string, detail?: string) {
+export function createCorrelationId(): string {
+  return randomUUID();
+}
+
+export function currentCorrelationId(): string | undefined {
+  return contextStorage.getStore()?.correlationId;
+}
+
+export function recordDebugEvent(input: DebugEventInput): ApiDebugEvent {
   const at = new Date().toISOString();
-  metrics.events.unshift({ at, area, event, detail });
-  if (metrics.events.length > MAX_EVENTS) {
-    metrics.events.length = MAX_EVENTS;
+  const event: ApiDebugEvent = {
+    id: randomUUID(),
+    at,
+    kind: input.kind,
+    api: input.api,
+    target: input.target,
+    summary: input.summary,
+    detail: input.detail,
+    correlationId: input.correlationId ?? currentCorrelationId(),
+    durationMs: input.durationMs,
+    status: input.status,
+  };
+
+  events.unshift(event);
+  if (events.length > MAX_EVENTS) {
+    events.length = MAX_EVENTS;
   }
-  touch(at);
+  updateCounters(event);
+  lastUpdatedAt = at;
+  return event;
 }
 
-export function recordLineStatusRequest(lineCount: number) {
-  metrics.lineStatus.requests += 1;
-  pushEvent("api", "POST /api/rail/line-status", `${lineCount} lines`);
-}
-
-export function recordLineStatusCacheHit(lineName: string) {
-  metrics.lineStatus.cacheHits += 1;
-  pushEvent("lineStatus", "cache hit", lineName);
-}
-
-export function recordLineStatusCacheMiss(lineName: string) {
-  metrics.lineStatus.cacheMisses += 1;
-  pushEvent("lineStatus", "cache miss", lineName);
-}
-
-export function recordLineStatusUpstreamRequest(url: string) {
-  metrics.lineStatus.upstreamRequests += 1;
-  metrics.lineStatus.lastFetchAt = new Date().toISOString();
-  pushEvent("lineStatus", "Yahoo request", url);
-}
-
-export function recordDeparturesRequest(boardingStation: string, displayCount: number) {
-  metrics.departures.requests += 1;
-  pushEvent("api", "POST /api/rail/departures", `${boardingStation}, ${displayCount} departures`);
-}
-
-export function recordDeparturesTrafficCacheHit() {
-  metrics.departures.trafficCacheHits += 1;
-  pushEvent("departures", "traffic cache hit");
-}
-
-export function recordDeparturesTrafficCacheMiss() {
-  metrics.departures.trafficCacheMisses += 1;
-  pushEvent("departures", "traffic cache miss");
-}
-
-export function recordDeparturesTrafficRequest() {
-  metrics.departures.trafficRequests += 1;
-  metrics.departures.lastTrafficFetchAt = new Date().toISOString();
-  pushEvent("departures", "traffic request");
-}
-
-export function recordDeparturesDiaRequest(trainId: string) {
-  metrics.departures.diaRequests += 1;
-  pushEvent("departures", "dia request", trainId);
-}
-
-export function recordDeparturesDiaCacheHit(trainId: string) {
-  metrics.departures.diaCacheHits += 1;
-  pushEvent("departures", "dia cache hit", trainId);
-}
-
-export function recordDeparturesDiaCacheMiss(trainId: string) {
-  metrics.departures.diaCacheMisses += 1;
-  pushEvent("departures", "dia cache miss", trainId);
-}
-
-export function recordDeparturesStopCacheHit(trainId: string) {
-  metrics.departures.stopCacheHits += 1;
-  pushEvent("departures", "stop cache hit", trainId);
-}
-
-export function recordDeparturesStopCacheMiss(trainId: string) {
-  metrics.departures.stopCacheMisses += 1;
-  pushEvent("departures", "stop cache miss", trainId);
-}
-
-export function recordDeparturesCalculated(station: string, departureCount: number) {
-  metrics.departures.lastCalculatedAt = new Date().toISOString();
-  pushEvent("departures", "calculated", `${station}, ${departureCount} departures`);
+export async function withUpstream(
+  api: string,
+  target: string,
+  request: () => Promise<Response>,
+  detail?: Record<string, unknown>,
+): Promise<Response> {
+  const startedAt = performance.now();
+  try {
+    const response = await request();
+    recordDebugEvent({
+      kind: "upstream_request",
+      api,
+      target,
+      summary: `External API returned ${response.status}`,
+      status: response.status,
+      durationMs: elapsedMs(startedAt),
+      detail,
+    });
+    return response;
+  } catch (error) {
+    recordDebugEvent({
+      kind: "error",
+      api,
+      target,
+      summary: "External API request failed",
+      durationMs: elapsedMs(startedAt),
+      detail: {
+        ...detail,
+        message: errorMessage(error),
+      },
+    });
+    throw error;
+  }
 }
 
 export function getDebugMetrics(): ApiDebugMetrics {
-  return structuredClone(metrics);
+  return structuredClone({
+    totals,
+    apiStats: apiStats(),
+    events,
+    lastUpdatedAt,
+  });
+}
+
+function updateCounters(event: ApiDebugEvent): void {
+  const stat = statForApi(event.api);
+  stat.lastEventAt = event.at;
+
+  switch (event.kind) {
+    case "backend_request":
+      totals.backendRequests += 1;
+      stat.backendRequests += 1;
+      return;
+    case "upstream_request":
+      totals.upstreamRequests += 1;
+      stat.upstreamRequests += 1;
+      return;
+    case "cache_hit":
+      totals.cacheHits += 1;
+      stat.cacheHits += 1;
+      return;
+    case "cache_miss":
+      totals.cacheMisses += 1;
+      stat.cacheMisses += 1;
+      return;
+    case "error":
+      totals.errors += 1;
+      stat.errors += 1;
+      return;
+    case "calculation":
+      return;
+  }
+}
+
+function statForApi(api: string): ApiDebugApiStats {
+  const current = statsByApi.get(api);
+  if (current) {
+    return current;
+  }
+
+  const created: ApiDebugApiStats = {
+    api,
+    label: API_DEBUG_LABELS[api] ?? api,
+    ...emptyTotals(),
+  };
+  statsByApi.set(api, created);
+  return created;
+}
+
+function apiStats(): ApiDebugApiStats[] {
+  for (const api of Object.keys(API_DEBUG_LABELS)) {
+    statForApi(api);
+  }
+
+  return [...statsByApi.values()].sort((a, b) => a.label.localeCompare(b.label, "ja"));
+}
+
+function emptyTotals(): ApiDebugTotals {
+  return {
+    backendRequests: 0,
+    upstreamRequests: 0,
+    cacheHits: 0,
+    cacheMisses: 0,
+    errors: 0,
+  };
+}
+
+function elapsedMs(startedAt: number): number {
+  return Math.round(performance.now() - startedAt);
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return "Unknown error";
 }

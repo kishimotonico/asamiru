@@ -5,12 +5,11 @@ import { load } from "cheerio";
 import type { LineStatusResponse, RailDeparturesResponse, TrainLineStatus, WatchedLine } from "@asamiru/shared";
 import { fetchDepartures } from "./departures.js";
 import {
+  createCorrelationId,
   getDebugMetrics,
-  recordDeparturesRequest,
-  recordLineStatusCacheHit,
-  recordLineStatusCacheMiss,
-  recordLineStatusRequest,
-  recordLineStatusUpstreamRequest,
+  recordDebugEvent,
+  runWithDebugContext,
+  withUpstream,
 } from "./metrics.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -21,6 +20,8 @@ const USER_AGENT = "asamiru/0.1 personal dashboard";
 const lineStatusCache = new Map<string, { value: TrainLineStatus; expiresAt: number }>();
 
 const app = new Hono();
+const LINE_STATUS_API = "rail/line-status";
+const DEPARTURES_API = "rail/departures";
 
 app.use(
   "/api/*",
@@ -28,6 +29,12 @@ app.use(
     origin: ["http://asa.localhost:1355", "http://localhost:5173", "http://127.0.0.1:5173"],
   }),
 );
+
+app.use("/api/*", async (c, next) => {
+  const correlationId = createCorrelationId();
+  c.header("X-Correlation-Id", correlationId);
+  return runWithDebugContext(correlationId, () => next());
+});
 
 app.get("/api/health", (c) => c.json({ ok: true }));
 
@@ -42,7 +49,13 @@ app.delete("/api/rail/line-status/cache", (c) => {
 app.post("/api/rail/line-status", async (c) => {
   const body = await c.req.json<{ lines: WatchedLine[] }>();
   const lines = Array.isArray(body?.lines) ? body.lines : [];
-  recordLineStatusRequest(lines.length);
+  recordDebugEvent({
+    kind: "backend_request",
+    api: LINE_STATUS_API,
+    target: "POST /api/rail/line-status",
+    summary: "Received line status request",
+    detail: { lineCount: lines.length },
+  });
 
   const results = await Promise.allSettled(lines.map((line) => fetchLineStatus(line)));
   const resolved: TrainLineStatus[] = [];
@@ -53,6 +66,13 @@ app.post("/api/rail/line-status", async (c) => {
     } else {
       console.error("fetchLineStatus failed:", result.reason);
       failures.push(errorMessage(result.reason));
+      recordDebugEvent({
+        kind: "error",
+        api: LINE_STATUS_API,
+        target: "POST /api/rail/line-status",
+        summary: "Line status request skipped a failed line",
+        detail: { message: errorMessage(result.reason) },
+      });
     }
   }
 
@@ -76,7 +96,13 @@ app.post("/api/rail/departures", async (c) => {
   if (!boardingStation) {
     return c.json({ error: "boardingStation is required" }, 400);
   }
-  recordDeparturesRequest(boardingStation, displayCount);
+  recordDebugEvent({
+    kind: "backend_request",
+    api: DEPARTURES_API,
+    target: "POST /api/rail/departures",
+    summary: "Received departures request",
+    detail: { boardingStation, displayCount },
+  });
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -90,6 +116,13 @@ app.post("/api/rail/departures", async (c) => {
     return c.json(response);
   } catch (error) {
     console.error("fetchDepartures failed:", error);
+    recordDebugEvent({
+      kind: "error",
+      api: DEPARTURES_API,
+      target: "POST /api/rail/departures",
+      summary: "Departures request failed",
+      detail: { boardingStation, displayCount, message: errorMessage(error) },
+    });
     return c.json({ error: errorMessage(error) }, 502);
   } finally {
     clearTimeout(timeoutId);
@@ -100,11 +133,23 @@ async function fetchLineStatus(line: WatchedLine): Promise<TrainLineStatus> {
   const sourceUrl = normalizeYahooTransitInfoUrl(line.yahooUrl);
   const cached = lineStatusCache.get(sourceUrl);
   if (cached && cached.expiresAt > Date.now()) {
-    recordLineStatusCacheHit(line.name);
+    recordDebugEvent({
+      kind: "cache_hit",
+      api: LINE_STATUS_API,
+      target: sourceUrl,
+      summary: "Line status served from cache",
+      detail: { lineName: line.name, cache: "line-status" },
+    });
     return cached.value;
   }
 
-  recordLineStatusCacheMiss(line.name);
+  recordDebugEvent({
+    kind: "cache_miss",
+    api: LINE_STATUS_API,
+    target: sourceUrl,
+    summary: "Line status cache miss",
+    detail: { lineName: line.name, cache: "line-status" },
+  });
   const html = await fetchText(sourceUrl);
   const parsed = parseYahooTrainInfo(html);
   const status: TrainLineStatus = {
@@ -140,15 +185,28 @@ async function fetchText(url: string): Promise<string> {
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
   try {
-    recordLineStatusUpstreamRequest(url);
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        "User-Agent": USER_AGENT,
-        Accept: "text/html,application/xhtml+xml",
-      },
-    });
+    const response = await withUpstream(
+      LINE_STATUS_API,
+      url,
+      () =>
+        fetch(url, {
+          signal: controller.signal,
+          headers: {
+            "User-Agent": USER_AGENT,
+            Accept: "text/html,application/xhtml+xml",
+          },
+        }),
+      { provider: "yahoo-transit" },
+    );
     if (!response.ok) {
+      recordDebugEvent({
+        kind: "error",
+        api: LINE_STATUS_API,
+        target: url,
+        summary: "Yahoo transit returned an error status",
+        status: response.status,
+        detail: { provider: "yahoo-transit" },
+      });
       throw new Error(`Yahoo transit returned ${response.status}`);
     }
     return await response.text();

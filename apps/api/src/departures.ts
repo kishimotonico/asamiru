@@ -1,15 +1,5 @@
 import type { RailDeparturesResponse } from "@asamiru/shared";
-import {
-  recordDeparturesCalculated,
-  recordDeparturesTrafficCacheHit,
-  recordDeparturesTrafficCacheMiss,
-  recordDeparturesDiaCacheHit,
-  recordDeparturesDiaCacheMiss,
-  recordDeparturesDiaRequest,
-  recordDeparturesStopCacheHit,
-  recordDeparturesStopCacheMiss,
-  recordDeparturesTrafficRequest,
-} from "./metrics.js";
+import { recordDebugEvent, withUpstream } from "./metrics.js";
 
 type TrafficResponse = {
   TS?: TrafficPosition[];
@@ -68,6 +58,7 @@ type StopCacheValue =
 
 const TRAFFIC_URL = "https://i.opentidkeio.jp/data/traffic_info.json";
 const DIA_URL_BASE = "https://i.opentidkeio.jp/dia/";
+const DEPARTURES_API = "rail/departures";
 const TARGET_LINES = new Set(["K", "S"]);
 const SERVICE_DAY_ROLLOVER_MINUTES = 4 * 60;
 // Keep candidate exploration independent from small display counts so skipped trains do not starve results.
@@ -268,7 +259,17 @@ export async function fetchDepartures({
 
   const departures = groupDepartures(candidates, displayLimit);
   const departureCount = Object.values(departures).reduce((total, group) => total + group.length, 0);
-  recordDeparturesCalculated(boardingStation, departureCount);
+  recordDebugEvent({
+    kind: "calculation",
+    api: DEPARTURES_API,
+    target: boardingStation,
+    summary: "Calculated departures",
+    detail: {
+      boardingStation,
+      departureCount,
+      displayLimit,
+    },
+  });
   return {
     station: boardingStation,
     departures,
@@ -295,10 +296,22 @@ async function resolveStopInfo({
   const cacheKey = stopCacheKey(serviceDate, trainId, boardingStation);
   const cached = stopCache.get(cacheKey);
   if (cached) {
-    recordDeparturesStopCacheHit(trainId);
+    recordDebugEvent({
+      kind: "cache_hit",
+      api: DEPARTURES_API,
+      target: cacheKey,
+      summary: "Stop cache hit",
+      detail: { cache: "stop", trainId, boardingStation, stops: cached.stops },
+    });
     return cached;
   }
-  recordDeparturesStopCacheMiss(trainId);
+  recordDebugEvent({
+    kind: "cache_miss",
+    api: DEPARTURES_API,
+    target: cacheKey,
+    summary: "Stop cache miss",
+    detail: { cache: "stop", trainId, boardingStation },
+  });
 
   const checks = diaCheckCounts.get(direction) ?? 0;
   if (checks >= maxDiaChecks) {
@@ -357,18 +370,49 @@ function collectUpcomingTrains(
 
 async function fetchTraffic(signal?: AbortSignal): Promise<TrafficResponse> {
   if (trafficCache && trafficCache.expiresAt > Date.now()) {
-    recordDeparturesTrafficCacheHit();
+    recordDebugEvent({
+      kind: "cache_hit",
+      api: DEPARTURES_API,
+      target: TRAFFIC_URL,
+      summary: "Traffic cache hit",
+      detail: { cache: "traffic" },
+    });
     return trafficCache.value;
   }
   if (trafficInflight) {
+    recordDebugEvent({
+      kind: "cache_hit",
+      api: DEPARTURES_API,
+      target: TRAFFIC_URL,
+      summary: "Traffic request joined in-flight fetch",
+      detail: { cache: "traffic", state: "inflight" },
+    });
     return trafficInflight;
   }
 
-  recordDeparturesTrafficCacheMiss();
-  recordDeparturesTrafficRequest();
-  trafficInflight = fetch(TRAFFIC_URL, { signal })
+  recordDebugEvent({
+    kind: "cache_miss",
+    api: DEPARTURES_API,
+    target: TRAFFIC_URL,
+    summary: "Traffic cache miss",
+    detail: { cache: "traffic" },
+  });
+  trafficInflight = withUpstream(
+    DEPARTURES_API,
+    TRAFFIC_URL,
+    () => fetch(TRAFFIC_URL, { signal }),
+    { provider: "opentidkeio", resource: "traffic" },
+  )
     .then(async (response) => {
       if (!response.ok) {
+        recordDebugEvent({
+          kind: "error",
+          api: DEPARTURES_API,
+          target: TRAFFIC_URL,
+          summary: "opentidkeio traffic returned an error status",
+          status: response.status,
+          detail: { provider: "opentidkeio", resource: "traffic" },
+        });
         throw new Error(`opentidkeio traffic returned ${response.status}`);
       }
 
@@ -390,25 +434,63 @@ async function fetchDia(trainId: string, serviceDate: string, signal?: AbortSign
   const cacheKey = `${serviceDate}:${trainId}`;
   const cached = diaCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
-    recordDeparturesDiaCacheHit(trainId);
+    recordDebugEvent({
+      kind: "cache_hit",
+      api: DEPARTURES_API,
+      target: cacheKey,
+      summary: "Dia cache hit",
+      detail: { cache: "dia", trainId, serviceDate },
+    });
     return cached.value;
   }
   const inflight = diaInflight.get(cacheKey);
   if (inflight) {
-    recordDeparturesDiaCacheHit(trainId);
+    recordDebugEvent({
+      kind: "cache_hit",
+      api: DEPARTURES_API,
+      target: cacheKey,
+      summary: "Dia request joined in-flight fetch",
+      detail: { cache: "dia", trainId, serviceDate, state: "inflight" },
+    });
     return inflight;
   }
 
-  recordDeparturesDiaCacheMiss(trainId);
-  recordDeparturesDiaRequest(trainId);
-  const request = fetch(`${DIA_URL_BASE}${encodeURIComponent(trainId)}.json`, { signal })
+  recordDebugEvent({
+    kind: "cache_miss",
+    api: DEPARTURES_API,
+    target: cacheKey,
+    summary: "Dia cache miss",
+    detail: { cache: "dia", trainId, serviceDate },
+  });
+  const diaUrl = `${DIA_URL_BASE}${encodeURIComponent(trainId)}.json`;
+  const request = withUpstream(
+    DEPARTURES_API,
+    diaUrl,
+    () => fetch(diaUrl, { signal }),
+    { provider: "opentidkeio", resource: "dia", trainId, serviceDate },
+  )
     .then(async (response) => {
       if (!response.ok) {
+        recordDebugEvent({
+          kind: "error",
+          api: DEPARTURES_API,
+          target: diaUrl,
+          summary: "opentidkeio dia returned an error status",
+          status: response.status,
+          detail: { provider: "opentidkeio", resource: "dia", trainId, serviceDate },
+        });
         throw new Error(`opentidkeio dia ${trainId} returned ${response.status}`);
       }
 
       const value = (await response.json()) as DiaResponse;
       if (!Array.isArray(value.dy)) {
+        recordDebugEvent({
+          kind: "error",
+          api: DEPARTURES_API,
+          target: diaUrl,
+          summary: "opentidkeio dia response is incomplete",
+          detail: { provider: "opentidkeio", resource: "dia", trainId, serviceDate },
+        });
         throw new Error(`opentidkeio dia ${trainId} response is incomplete`);
       }
       diaCache.set(cacheKey, { value, expiresAt: Date.now() + DIA_TTL_MS });
