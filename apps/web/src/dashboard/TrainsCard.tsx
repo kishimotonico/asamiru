@@ -34,41 +34,41 @@ export function TrainsCard({
             {departures.map((departure, index) => {
               const delay = departure.delay ?? 0;
               const isSchedule = departure.source === "schedule";
+              const barColor = isSchedule
+                ? "bg-[#d4d2cc]"
+                : delay > 0
+                  ? "bg-[#c14b3a]"
+                  : "bg-[#c8dfc9]";
               return (
                 <div
                   key={`${departure.time}-${departure.dest}-${index}`}
-                  className={index < departures.length - 1 ? "border-b border-[#e8e6df] py-3" : "py-3"}
+                  className={`flex gap-3 ${index < departures.length - 1 ? "border-b border-[#e8e6df] py-3" : "py-3"}`}
                 >
-                  <div className="flex flex-wrap items-baseline gap-2.5">
-                    <div
-                      className={`font-mono text-3xl font-medium tracking-[-0.02em] ${
-                        delay > 0 ? "text-[#c14b3a]" : "text-[#1f2024]"
-                      }`}
-                    >
-                      {delay > 0 && departure.scheduled ? (
-                        <span className="mr-1 text-xl font-normal text-[#9aa0aa] line-through">{departure.scheduled}</span>
+                  <div className={`mt-1 w-0.5 shrink-0 self-stretch rounded-full ${barColor}`} />
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-baseline gap-2.5">
+                      <div
+                        className={`font-mono text-3xl font-medium tracking-[-0.02em] ${
+                          isSchedule ? "text-[#8a8f99]" : delay > 0 ? "text-[#c14b3a]" : "text-[#1f2024]"
+                        }`}
+                      >
+                        {delay > 0 && departure.scheduled ? (
+                          <span className="mr-1 text-xl font-normal text-[#9aa0aa] line-through">{departure.scheduled}</span>
+                        ) : null}
+                        {departure.time}
+                      </div>
+                      {delay > 0 ? (
+                        <span className="rounded-full bg-[#fbece8] px-2 py-1 text-xs font-semibold text-[#c14b3a]">
+                          +{delay}分
+                        </span>
                       ) : null}
-                      {departure.time}
                     </div>
-                    {isSchedule ? (
-                      <span className="rounded-full bg-[#ededea] px-2 py-1 text-xs font-semibold text-[#9aa0aa]">
-                        時刻表
+                    <div className="mt-1 flex items-center gap-2 text-base text-[#5a5f69]">
+                      <span className="rounded bg-[#f0eee5] px-2 py-0.5 text-xs font-semibold tracking-[0.04em]">
+                        {departure.kind}
                       </span>
-                    ) : delay > 0 ? (
-                      <span className="rounded-full bg-[#fbece8] px-2 py-1 text-xs font-semibold text-[#c14b3a]">
-                        +{delay}分
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-[#edf5ee] px-2 py-1 text-xs font-semibold text-[#4a8c55]">
-                        定刻
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-1 flex items-center gap-2 text-base text-[#5a5f69]">
-                    <span className="rounded bg-[#f0eee5] px-2 py-0.5 text-xs font-semibold tracking-[0.04em]">
-                      {departure.kind}
-                    </span>
-                    <span>{departure.dest}行</span>
+                      <span>{departure.dest}行</span>
+                    </div>
                   </div>
                 </div>
               );
