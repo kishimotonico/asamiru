@@ -21,6 +21,31 @@ const REQUEST_INTERVAL_MS = 800;
 // 井の頭線は本アプリ対象外
 const EXCLUDED_LINES = new Set(["7"]);
 
+// keio.co.jp の駅一覧トップページに載っていない組み合わせを手動で追加。
+const EXTRA_STATION_LINE_PAIRS: Array<{ station: string; line: string; label: string }> = [
+  // 新線新宿 (下り: 都営新宿線直通): station=4254 は新宿と同一 ID。
+  // navitime は station.name="新宿" で返すため、取得後に STATION_ALIASES でキーを追加する。
+  { station: "4254", line: "8", label: "新線新宿 下り (line=8)" },
+];
+
+// navitime の駅名 → 追加するエイリアス駅名のマッピング。
+// 新線新宿は navitime 上では「新宿」として扱われるため、同一データを「新線新宿」キーでも保存する。
+const STATION_ALIASES: Record<string, string[]> = {
+  "新宿": ["新線新宿"],
+};
+
+// アプリが対応する全乗車駅（KEIO_STATIONS と同期すること）
+const EXPECTED_STATIONS = [
+  "新宿", "笹塚", "代田橋", "明大前", "下高井戸", "桜上水", "上北沢",
+  "八幡山", "芦花公園", "千歳烏山", "仙川", "つつじヶ丘", "柴崎", "国領",
+  "布田", "調布", "西調布", "飛田給", "武蔵野台", "多磨霊園", "東府中",
+  "府中", "分倍河原", "中河原", "聖蹟桜ヶ丘", "百草園", "高幡不動", "南平",
+  "平山城址公園", "長沼", "北野", "京王八王子", "新線新宿", "初台", "幡ヶ谷",
+  "京王片倉", "山田", "めじろ台", "狭間", "高尾", "高尾山口",
+  "京王多摩川", "京王稲田堤", "京王よみうりランド", "稲城", "若葉台",
+  "京王永山", "京王多摩センター", "京王堀之内", "南大沢", "多摩境", "橋本",
+];
+
 type NavitimeMinute = {
   time: string;
   train_no: string;
@@ -65,12 +90,26 @@ function directionLabel(direction: string): string {
 }
 
 function normalizeDestination(dest: string): string {
-  // 【高幡不動から各駅停車】などの隅付き括弧注記を除去（U+3010/3011）
-  return dest.replace(/【[^】]*】/g, "").trim();
+  return dest
+    .replace(/【[^】]*】/g, "")  // 隅付き括弧 U+3010/3011
+    .replace(/〔[^〕]*〕/g, "")  // 亀甲括弧 U+3014/3015
+    .trim();
+}
+
+/**
+ * ヶ/ケ・互換漢字・全角括弧付加表記（飛田給（味の素スタジアム前）など）を正規化。
+ * 全角括弧除去は NFKC より先に行うこと（NFKC が （ を ( に変換するため）。
+ */
+function normalizeKey(name: string): string {
+  return name
+    .replace(/（[^）]*）/g, "")
+    .normalize("NFKC")
+    .replace(/ヶ/g, "ケ")
+    .replace(/ヵ/g, "カ")
+    .trim();
 }
 
 function formatTime(isoTime: string): string {
-  // "2026-06-08T05:08:00+09:00" → "05:08"
   const match = /T(\d{2}):(\d{2})/.exec(isoTime);
   if (!match) throw new Error(`Unexpected time format: ${isoTime}`);
   return `${match[1]}:${match[2]}`;
@@ -86,21 +125,24 @@ async function fetchText(url: string): Promise<string> {
   return res.text();
 }
 
-async function fetchNavitime(station: string, line: string, direction: string): Promise<NavitimeResponse | null> {
+async function fetchNavitime(
+  station: string,
+  line: string,
+  direction: string,
+): Promise<NavitimeResponse | null> {
   const url = `${NAVITIME_API_BASE}/${station}/${line}/${direction}?lang=ja`;
-  try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
-    });
-    if (!res.ok) {
-      console.warn(`  [skip] HTTP ${res.status}: station=${station} line=${line} dir=${direction}`);
-      return null;
-    }
-    return (await res.json()) as NavitimeResponse;
-  } catch (e) {
-    console.warn(`  [skip] fetch error: station=${station} line=${line} dir=${direction}: ${e}`);
+  const res = await fetch(url, {
+    headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+  });
+  if (res.status === 502 || res.status === 404) {
+    // 終端駅の逆方向など、存在しない組み合わせは正常にスキップ
     return null;
   }
+  if (!res.ok) {
+    // 想定外のエラーは fail-fast
+    throw new Error(`HTTP ${res.status}: ${url}`);
+  }
+  return (await res.json()) as NavitimeResponse;
 }
 
 function parseEntries(timetables: NavitimeTimetableTarget[]): {
@@ -152,6 +194,26 @@ function mergeEntries(existing: TimetableEntry[], incoming: TimetableEntry[]): T
   return merged;
 }
 
+/** 期待駅がすべて取得済み stations に含まれるかを検証し、欠損があれば非ゼロ終了する */
+function verifyCoverage(stations: Map<string, StationData>): void {
+  const stationKeys = [...stations.keys()];
+  const missing: string[] = [];
+
+  for (const expected of EXPECTED_STATIONS) {
+    const found = stationKeys.some((k) => normalizeKey(k) === normalizeKey(expected));
+    if (!found) missing.push(expected);
+  }
+
+  if (missing.length > 0) {
+    console.error(`\n[ERROR] 期待する駅が時刻表に含まれていません:`);
+    for (const m of missing) console.error(`  - ${m}`);
+    console.error(`\n  EXTRA_STATION_LINE_PAIRS の追加、またはスクレイピング元を確認してください。`);
+    process.exit(1);
+  }
+
+  console.log(`   カバレッジ検証 OK: ${EXPECTED_STATIONS.length} 駅すべて確認`);
+}
+
 async function main() {
   console.log("1. keio.co.jp 駅一覧を取得中...");
   const html = await fetchText(KEIO_STATION_LIST_URL);
@@ -174,14 +236,21 @@ async function main() {
     stationLinePairs.set(`${station}-${line}`, { station, line });
   }
 
-  // 各 station+line に対して direction=0 と direction=1 の両方を試す
+  // 手動追加分を統合
+  for (const { station, line } of EXTRA_STATION_LINE_PAIRS) {
+    const key = `${station}-${line}`;
+    if (!stationLinePairs.has(key)) {
+      stationLinePairs.set(key, { station, line });
+    }
+  }
+
   const allCombos: Array<{ station: string; line: string; direction: string }> = [];
   for (const { station, line } of stationLinePairs.values()) {
     allCombos.push({ station, line, direction: "0" });
     allCombos.push({ station, line, direction: "1" });
   }
 
-  console.log(`   ${stationLinePairs.size} 駅+路線ペア × 2方向 = ${allCombos.length} リクエスト（井の頭線除く）`);
+  console.log(`   ${stationLinePairs.size} 駅+路線ペア × 2方向 = ${allCombos.length} リクエスト`);
 
   console.log("2. navitime API から時刻表を取得中...");
 
@@ -201,19 +270,21 @@ async function main() {
     const dirLabel = directionLabel(direction);
     const entries = parseEntries(data.timetables);
 
-    if (!stations.has(stationName)) {
-      stations.set(stationName, {});
-    }
-    const stationData = stations.get(stationName)!;
+    // 本駅名 + エイリアス名の両方にデータを書き込む
+    const targetNames = [stationName, ...(STATION_ALIASES[stationName] ?? [])];
+    for (const name of targetNames) {
+      if (!stations.has(name)) {
+        stations.set(name, {});
+      }
+      const stationData = stations.get(name)!;
 
-    if (!stationData[dirLabel]) {
-      stationData[dirLabel] = { weekday: [], holiday: [] };
+      if (!stationData[dirLabel]) {
+        stationData[dirLabel] = { weekday: [], holiday: [] };
+      }
+      stationData[dirLabel].weekday = mergeEntries(stationData[dirLabel].weekday, entries.weekday);
+      stationData[dirLabel].holiday = mergeEntries(stationData[dirLabel].holiday, entries.holiday);
     }
-    // 同一駅・方向に複数の line からデータが来る場合はマージ
-    stationData[dirLabel].weekday = mergeEntries(stationData[dirLabel].weekday, entries.weekday);
-    stationData[dirLabel].holiday = mergeEntries(stationData[dirLabel].holiday, entries.holiday);
 
-    // 改正日は最初に取れたものを使用（全駅同じはず）
     if (!revision.weekday && data.detail.revision.weekday?.date) {
       revision = {
         weekday: data.detail.revision.weekday.date,
@@ -224,6 +295,9 @@ async function main() {
 
   process.stdout.write("\n");
   console.log(`   ${stations.size} 駅のデータを取得`);
+
+  console.log("3. カバレッジを検証中...");
+  verifyCoverage(stations);
 
   const output = {
     generatedAt: new Date().toISOString(),
