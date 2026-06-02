@@ -8,6 +8,8 @@
 }
 
 :root {
+  /* Dashboard の <main> でも上書きされるが、body 直下の portal（モーダル等）でも accent を効かせるため :root にも定義 */
+  --accent: #3a6b8a;
   color-scheme: light;
   font-synthesis: none;
   text-rendering: optimizeLegibility;

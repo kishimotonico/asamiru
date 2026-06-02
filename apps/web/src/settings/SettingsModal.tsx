@@ -7,6 +7,7 @@ import { weatherSettingsAtom } from "./weatherSettingsAtom";
 import { trainsSettingsAtom, KEIO_STATIONS } from "./trainsSettingsAtom";
 import { ActionButton, SelectInput, SettingField, TextInput } from "./components/FormControls";
 import { LineMultiSelect } from "./components/LineMultiSelect";
+import { SleepSettingsSection } from "./SleepSettingsSection";
 
 type SettingsModalProps = {
   open: boolean;
@@ -197,6 +198,11 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
                   </div>
                 </div>
               </div>
+            </section>
+
+            <section>
+              <SectionTitle>スリープ</SectionTitle>
+              <SleepSettingsSection />
             </section>
           </div>
         </DialogPanel>

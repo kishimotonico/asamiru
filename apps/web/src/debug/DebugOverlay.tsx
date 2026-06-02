@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ApiDebugEvent, ApiDebugMetrics } from "@asamiru/shared";
+import { isTextInputTarget } from "../lib/dom";
 
 const DEBUG_METRICS_ENDPOINT = `${import.meta.env.VITE_API_ORIGIN ?? ""}/api/debug/metrics`;
 
@@ -436,10 +437,3 @@ function kindClassName(kind: ApiDebugEvent["kind"]): string {
   }
 }
 
-function isTextInputTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) {
-    return false;
-  }
-  const tagName = target.tagName.toLowerCase();
-  return tagName === "input" || tagName === "textarea" || tagName === "select" || target.isContentEditable;
-}
