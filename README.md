@@ -21,25 +21,21 @@ pnpm dev
 
 今のところ、1920x1080のフルスクリーンを想定
 
-## Production run
+## 本番起動
 
-本番ビルドを作成して、NodeプロセスだけでWebとAPIを配信する。
-
-```
-pnpm install
-cp .env.example .env.local
-pnpm serve
-```
-
-`pnpm serve` は `shared`、`api`、`web` を本番ビルドしてから API サーバーを起動する。API サーバーは `apps/web/dist` も静的配信するため、ブラウザから `http://localhost:8787` を開けばダッシュボードを表示できる。
-
-ビルド済みファイルをそのまま再起動するだけなら:
+Raspberry Pi など1台のデバイスで動かす想定。リバースプロキシは挟まず、API サーバー（Hono）が `apps/web/dist` も静的配信するので、Node だけで完結する。
 
 ```
-pnpm start
+pnpm build   # shared → api → web をまとめてビルド
+pnpm start   # API を起動（apps/web/dist も配信）
 ```
 
-既定のポートは `8787`。変更する場合は `PORT=3000 pnpm start` のように指定する。Webビルド出力を別の場所から配信したい場合は `ASAMIRU_WEB_DIST=/path/to/dist pnpm start` を使う。
+起動後は http://localhost:8787 でダッシュボードを開ける。
+
+- `PORT`: 待ち受けポート（既定 `8787`）。
+- `ASAMIRU_WEB_DIST`: 配信する Web ビルドの場所を変えたいときに指定。未指定なら `apps/web/dist` を使う。
+
+`.env.local` の `VITE_*` はビルド時に埋め込まれるため、設定変更後は再ビルドが必要。
 
 ## 設定
 

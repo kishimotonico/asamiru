@@ -4,7 +4,8 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { load } from "cheerio";
 import { existsSync } from "node:fs";
-import { relative, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { LineStatusResponse, RailDeparturesResponse, TrainLineStatus, WatchedLine } from "@asamiru/shared";
 import { fetchDepartures } from "./departures.js";
 import {
@@ -288,17 +289,13 @@ function resolveWebDistRoot(): string | undefined {
     if (!existsSync(absolutePath)) {
       throw new Error(`ASAMIRU_WEB_DIST does not exist: ${absolutePath}`);
     }
-    return relative(process.cwd(), absolutePath);
+    return absolutePath;
   }
 
-  const candidates = ["../web/dist", "apps/web/dist"];
-  for (const candidate of candidates) {
-    if (existsSync(resolve(process.cwd(), candidate))) {
-      return candidate;
-    }
-  }
-
-  return undefined;
+  // apps/api/dist/index.js（dev時は apps/api/src/index.ts）を基準に apps/web/dist を解決する。
+  // 実行時の cwd に依存しないため、systemd などどこから起動しても同じ結果になる。
+  const distRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../web/dist");
+  return existsSync(distRoot) ? distRoot : undefined;
 }
 
 serve(

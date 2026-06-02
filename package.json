@@ -10,7 +10,6 @@
     "dev:web": "pnpm --filter web dev",
     "build": "pnpm --filter shared build && pnpm --filter api build && pnpm --filter web build",
     "start": "pnpm --filter api start",
-    "serve": "pnpm build && pnpm start",
     "preview": "pnpm --filter web preview"
   },
   "dependencies": {},
