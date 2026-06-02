@@ -1,5 +1,6 @@
 import type { RailDeparturesResponse } from "@asamiru/shared";
 import { recordDebugEvent, withUpstream } from "./metrics.js";
+import { buildScheduleCandidates, selectDiakind } from "./timetable.js";
 
 type TrafficResponse = {
   TS?: TrafficPosition[];
@@ -39,6 +40,8 @@ type TrainCandidate = {
   scheduledMinutes: number;
   estimatedMinutes: number;
   delay: number;
+  /** データソース。補完候補は "schedule" */
+  source: "realtime" | "schedule";
 };
 
 type PositionedTrain = {
@@ -246,6 +249,7 @@ export async function fetchDepartures({
       scheduledMinutes: stop.scheduledMinutes,
       estimatedMinutes,
       delay,
+      source: "realtime",
     });
     validCounts.set(direction, (validCounts.get(direction) ?? 0) + 1);
   }
@@ -255,6 +259,26 @@ export async function fetchDepartures({
   }
   if (failures.length > 0) {
     console.error("fetchDepartures skipped candidates:", failures);
+  }
+
+  const diakind = selectDiakind(serviceDate);
+  const realtimeTrainIds = new Set(candidates.map((c) => c.trainId.trim()));
+  const directionCounts = new Map<string, number>();
+  for (const c of candidates) {
+    directionCounts.set(c.direction, (directionCounts.get(c.direction) ?? 0) + 1);
+  }
+  for (const direction of ["上り方面", "下り方面"]) {
+    const count = directionCounts.get(direction) ?? 0;
+    if (count < displayLimit) {
+      const scheduleCandidates = buildScheduleCandidates(
+        boardingStation,
+        direction,
+        diakind,
+        currentMinutes,
+        realtimeTrainIds,
+      );
+      candidates.push(...scheduleCandidates);
+    }
   }
 
   const departures = groupDepartures(candidates, displayLimit);
@@ -525,7 +549,8 @@ function groupDepartures(candidates: TrainCandidate[], displayLimit: number): Ra
             scheduled: train.delay > 0 ? formatMinutes(train.scheduledMinutes) : undefined,
             kind: train.kind,
             dest: train.dest,
-            delay: train.delay,
+            delay: train.source === "realtime" ? train.delay : undefined,
+            source: train.source,
           })),
       ]),
   );

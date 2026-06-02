@@ -25,7 +25,10 @@ export type RailDeparture = {
   scheduled?: string;
   kind: string;
   dest: string;
-  delay: number;
+  /** 遅延分数。source が "schedule" の場合は undefined */
+  delay?: number;
+  /** データソース: リアルタイム運行情報 or 時刻表補完 */
+  source: "realtime" | "schedule";
 };
 
 export type RailDeparturesResponse = {

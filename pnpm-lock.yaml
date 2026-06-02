@@ -17,6 +17,9 @@ importers:
       '@asamiru/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@holiday-jp/holiday_jp':
+        specifier: ^2.5.1
+        version: 2.5.1
       '@hono/node-server':
         specifier: ^1.19.6
         version: 1.19.14(hono@4.12.23)
@@ -286,6 +289,9 @@ packages:
     peerDependencies:
       react: ^18 || ^19 || ^19.0.0-rc
       react-dom: ^18 || ^19 || ^19.0.0-rc
+
+  '@holiday-jp/holiday_jp@2.5.1':
+    resolution: {integrity: sha512-KuXfzsp0xlP830WDZRbsHj99wJzamx4fS55usUJFz+oHZmZ4gJfVdyiyv/rIWK+O7RgfHSi5j5Ajy0ZK/Vlnyg==}
 
   '@hono/node-server@1.19.14':
     resolution: {integrity: sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw==}
@@ -1068,6 +1074,8 @@ snapshots:
       react: 19.2.6
       react-dom: 19.2.6(react@19.2.6)
       use-sync-external-store: 1.6.0(react@19.2.6)
+
+  '@holiday-jp/holiday_jp@2.5.1': {}
 
   '@hono/node-server@1.19.14(hono@4.12.23)':
     dependencies:

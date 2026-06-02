@@ -1,4 +1,4 @@
-import type { TrainLineStatus } from "@asamiru/shared";
+import type { RailDeparture, TrainLineStatus } from "@asamiru/shared";
 
 export type WeatherIconKind = "sun" | "cloud" | "partly" | "rain" | "snow";
 
@@ -32,16 +32,7 @@ export type DashboardData = {
   };
   trains: {
     station: string;
-    departures: Record<
-      string,
-      Array<{
-        time: string;
-        scheduled?: string;
-        kind: string;
-        dest: string;
-        delay: number;
-      }>
-    >;
+    departures: Record<string, RailDeparture[]>;
     lines: TrainLineStatus[];
   };
   schedule: {
