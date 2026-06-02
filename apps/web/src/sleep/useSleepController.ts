@@ -32,12 +32,23 @@ export function useSleepController(): { sleeping: boolean; now: number } {
   sleepingRef.current = sleeping;
   const toggleFullscreenRef = useRef(toggleFullscreen);
   toggleFullscreenRef.current = toggleFullscreen;
+  const awakeUntilRef = useRef(awakeUntil);
+  awakeUntilRef.current = awakeUntil;
 
   // 時刻 tick（境界・期限の再評価用）
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), TICK_INTERVAL_MS);
     return () => window.clearInterval(id);
   }, []);
+
+  // 自動スリープ時間の設定変更を、現在の一時起床にも即反映（スリープ帯で起床中のときのみ寄せる）
+  useEffect(() => {
+    const nowMs = Date.now();
+    if (awakeUntilRef.current > nowMs && scheduleSleepingNow(new Date(nowMs), settingsRef.current)) {
+      setAwakeUntil(nowMs + settingsRef.current.manualWakeDurationMin * 60_000);
+      setNow(nowMs);
+    }
+  }, [settings.manualWakeDurationMin]);
 
   // グローバル操作リスナ（マウント時に1度だけ登録）
   useEffect(() => {

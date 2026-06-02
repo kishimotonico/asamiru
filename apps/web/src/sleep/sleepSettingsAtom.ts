@@ -63,7 +63,18 @@ export function scheduleAwakeNow(now: Date, windows: SleepWindow[]): boolean {
   return false;
 }
 
-/** スケジュール上スリープすべき時間帯か（起床時間帯の外）。空スケジュールでは自動スリープしない。 */
+/** 起床時間帯として機能する window か（曜日が1つ以上 ＆ 有効な時刻幅を持つ）。 */
+export function isEffectiveWindow(w: SleepWindow): boolean {
+  if (w.days.length === 0) return false;
+  const s = parseHmToMinutes(w.start);
+  const e = parseHmToMinutes(w.end);
+  return !Number.isNaN(s) && !Number.isNaN(e) && s !== e;
+}
+
+/**
+ * スケジュール上スリープすべき時間帯か（起床時間帯の外）。
+ * 有効な起床時間帯が1つも無い場合（空・全曜日OFF・無効時刻のみ）は自動スリープしない。
+ */
 export function scheduleSleepingNow(now: Date, settings: SleepSettings): boolean {
-  return settings.enabled && settings.windows.length > 0 && !scheduleAwakeNow(now, settings.windows);
+  return settings.enabled && settings.windows.some(isEffectiveWindow) && !scheduleAwakeNow(now, settings.windows);
 }
