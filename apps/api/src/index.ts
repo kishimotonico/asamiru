@@ -1,7 +1,10 @@
 import { serve } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { load } from "cheerio";
+import { existsSync } from "node:fs";
+import { relative, resolve } from "node:path";
 import type { LineStatusResponse, RailDeparturesResponse, TrainLineStatus, WatchedLine } from "@asamiru/shared";
 import { fetchDepartures } from "./departures.js";
 import {
@@ -16,6 +19,7 @@ const PORT = Number(process.env.PORT ?? 8787);
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 5000;
 const USER_AGENT = "asamiru/0.1 personal dashboard";
+const WEB_DIST_ROOT = resolveWebDistRoot();
 
 const lineStatusCache = new Map<string, { value: TrainLineStatus; expiresAt: number }>();
 
@@ -128,6 +132,25 @@ app.post("/api/rail/departures", async (c) => {
     clearTimeout(timeoutId);
   }
 });
+
+app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));
+
+if (WEB_DIST_ROOT) {
+  app.use(
+    "/*",
+    serveStatic({
+      root: WEB_DIST_ROOT,
+      onFound: (path, c) => {
+        c.header("Cache-Control", path.includes("/assets/") ? "public, max-age=31536000, immutable" : "no-cache");
+      },
+    }),
+  );
+  app.get("*", serveStatic({ root: WEB_DIST_ROOT, path: "index.html" }));
+} else {
+  console.warn(
+    "asamiru web dist was not found. Build the web app first or set ASAMIRU_WEB_DIST to serve the dashboard UI.",
+  );
+}
 
 async function fetchLineStatus(line: WatchedLine): Promise<TrainLineStatus> {
   const sourceUrl = normalizeYahooTransitInfoUrl(line.yahooUrl);
@@ -256,6 +279,26 @@ function errorMessage(error: unknown): string {
     return error.message;
   }
   return "Unknown error";
+}
+
+function resolveWebDistRoot(): string | undefined {
+  const configured = process.env.ASAMIRU_WEB_DIST;
+  if (configured) {
+    const absolutePath = resolve(process.cwd(), configured);
+    if (!existsSync(absolutePath)) {
+      throw new Error(`ASAMIRU_WEB_DIST does not exist: ${absolutePath}`);
+    }
+    return relative(process.cwd(), absolutePath);
+  }
+
+  const candidates = ["../web/dist", "apps/web/dist"];
+  for (const candidate of candidates) {
+    if (existsSync(resolve(process.cwd(), candidate))) {
+      return candidate;
+    }
+  }
+
+  return undefined;
 }
 
 serve(

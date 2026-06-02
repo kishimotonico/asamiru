@@ -1,6 +1,7 @@
 import type { LineStatusResponse, WatchedLine } from "@asamiru/shared";
+import { apiEndpoint } from "./apiEndpoint";
 
-const LINE_STATUS_ENDPOINT = `${import.meta.env.VITE_API_ORIGIN ?? ""}/api/rail/line-status`;
+const LINE_STATUS_ENDPOINT = apiEndpoint("/api/rail/line-status");
 
 export async function fetchLineStatus(
   lines: WatchedLine[],

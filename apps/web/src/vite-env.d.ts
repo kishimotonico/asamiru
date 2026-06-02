@@ -7,4 +7,5 @@ interface ImportMetaEnv {
   readonly VITE_KEIO_DIRECTIONS?: string;
   readonly VITE_WEATHER_LAT?: string;
   readonly VITE_WEATHER_LON?: string;
+  readonly VITE_API_ORIGIN?: string;
 }

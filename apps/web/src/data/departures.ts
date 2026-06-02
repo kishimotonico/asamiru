@@ -1,6 +1,7 @@
 import type { RailDeparturesResponse } from "@asamiru/shared";
+import { apiEndpoint } from "./apiEndpoint";
 
-const DEPARTURES_ENDPOINT = `${import.meta.env.VITE_API_ORIGIN ?? ""}/api/rail/departures`;
+const DEPARTURES_ENDPOINT = apiEndpoint("/api/rail/departures");
 
 export async function fetchDepartures(
   {

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ApiDebugEvent, ApiDebugMetrics } from "@asamiru/shared";
+import { apiEndpoint } from "../data/apiEndpoint";
 import { isTextInputTarget } from "../lib/dom";
 
-const DEBUG_METRICS_ENDPOINT = `${import.meta.env.VITE_API_ORIGIN ?? ""}/api/debug/metrics`;
+const DEBUG_METRICS_ENDPOINT = apiEndpoint("/api/debug/metrics");
 
 type Info = {
   w: number;
@@ -436,4 +437,3 @@ function kindClassName(kind: ApiDebugEvent["kind"]): string {
       return "bg-red-400/15 text-red-200";
   }
 }
-
