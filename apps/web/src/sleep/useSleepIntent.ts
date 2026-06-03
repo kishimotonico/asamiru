@@ -103,7 +103,9 @@ export function useSleepIntent(settings: SleepSettings): UseSleepIntent {
     if (!wasAwake && isAwake) dispatch({ type: "clearManual" });
   }, [state.now, state.manualSleeping, settings]);
 
-  // 自動スリープ時間の設定変更を一時起床期限へ即反映
+  // 自動スリープ時間の設定変更を一時起床期限へ即反映。
+  // 「スリープ帯であること」は Effect 側で、「一時起床中であること」は reducer 側
+  // （awakeUntil > now）で判定し、両方を満たすときだけ期限を取り直す。
   useEffect(() => {
     const now = Date.now();
     if (scheduleSleepingNow(new Date(now), settings)) {

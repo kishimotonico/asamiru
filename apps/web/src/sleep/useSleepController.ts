@@ -24,6 +24,8 @@ export function useSleepController(): { sleeping: boolean; now: number; sleepNow
   const display = useDisplaySync({
     desiredSleeping: intent.desiredSleeping,
     onExternalOn: intent.actions.wake,
+    // 物理OFFは手動スリープとして扱う。manualSleep は now も進めるが、
+    // 物理OFF時にスケジュール起床帯への流入エッジは成立しないため manual 解除は起きない（無害）。
     onExternalOff: intent.actions.manualSleep,
   });
 
