@@ -1,15 +1,12 @@
 import type { CSSProperties } from "react";
 import { useState } from "react";
-import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { useAtomValue } from "jotai";
 import { AsyncCardBoundary } from "./AsyncCardBoundary";
 import { CalendarCard } from "./CalendarCard";
 import { ClockCard } from "./ClockCard";
-import { WeatherCard, WeatherErrorCard, WeatherLoadingCard } from "./WeatherCard";
-import { TrainsCard, TrainsErrorCard, TrainsLoadingCard } from "./TrainsCard";
-import { departuresQueryOptions, lineStatusQueryOptions, weatherQueryOptions } from "./dashboardQueries";
-import { weatherSettingsAtom } from "../settings/weatherSettingsAtom";
-import { trainsSettingsAtom } from "../settings/trainsSettingsAtom";
+import { WeatherErrorCard, WeatherLoadingCard } from "./WeatherCard";
+import { TrainsErrorCard, TrainsLoadingCard } from "./TrainsCard";
+import { WeatherDataCard } from "./WeatherDataCard";
+import { TrainsDataCard } from "./TrainsDataCard";
 import { SettingsModal } from "../settings/SettingsModal";
 
 type AccentStyle = CSSProperties & { "--accent": string };
@@ -50,38 +47,5 @@ export function Dashboard({ accent = "#3a6b8a", onSleepClick }: DashboardProps) 
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </main>
-  );
-}
-
-function WeatherDataCard({ className }: { className?: string }) {
-  const settings = useAtomValue(weatherSettingsAtom);
-  const weather = useSuspenseQuery(weatherQueryOptions(settings));
-  return (
-    <WeatherCard
-      data={weather.data}
-      error={weather.error}
-      refreshing={weather.isFetching}
-      className={className}
-    />
-  );
-}
-
-function TrainsDataCard({ className }: { className?: string }) {
-  const settings = useAtomValue(trainsSettingsAtom);
-  const departures = useSuspenseQuery(departuresQueryOptions(settings));
-  const lineStatus = useQuery(lineStatusQueryOptions(settings.watchedLines));
-  const cappedDepartures = Object.fromEntries(
-    Object.entries(departures.data.departures).map(([dir, deps]) => [
-      dir,
-      deps.slice(0, settings.displayCount),
-    ]),
-  );
-  return (
-    <TrainsCard
-      data={{ ...departures.data, departures: cappedDepartures, lines: lineStatus.data?.lines ?? [] }}
-      error={departures.error ?? lineStatus.error}
-      refreshing={departures.isFetching || lineStatus.isFetching}
-      className={className}
-    />
   );
 }
