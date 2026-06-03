@@ -55,7 +55,10 @@ export class DisplayService {
   #commandPhase: DisplayCommandPhase = "idle";
   #lastObservedAt: string | null = null;
   #lastCommandAt: string | null = null;
+  /** 観測（poll/hotplug）由来の一時エラー。正常な観測で解消される */
   #error: DriverError | null = null;
+  /** コマンド失敗の永続エラー。次のコマンド成功までクリアしない（poll で消さない）*/
+  #commandError: DriverError | null = null;
   #settlingTimer: ReturnType<typeof setTimeout> | null = null;
   /** OFF 連続観測カウンタ */
   #offConsecutive = 0;
@@ -90,7 +93,8 @@ export class DisplayService {
       capabilities: this.#capabilities,
       lastObservedAt: this.#lastObservedAt,
       lastCommandAt: this.#lastCommandAt,
-      error: this.#error,
+      // コマンド失敗（永続）を優先表示。なければ観測由来の一時エラー
+      error: this.#commandError ?? this.#error,
     };
   }
 
@@ -116,10 +120,12 @@ export class DisplayService {
     // 初回 snapshot（外部操作判定はしない）
     await this.#enqueue(() => this.#observe("initial"));
 
-    // udev 常駐監視を開始
-    this.#startUdev();
+    // udev 常駐監視を開始（fake driver はハードを持たないので起動しない）
+    if (!isFakeDriver(this.#driver)) {
+      this.#startUdev();
+    }
 
-    // polling（skip-if-busy）
+    // polling（skip-if-busy）。fake driver の readPower は in-memory なのでハードを触らない
     this.#pollTimer = setInterval(() => {
       this.#pollIfIdle();
     }, POLL_MS);
@@ -141,11 +147,19 @@ export class DisplayService {
     if (!this.#started) throw new Error("DisplayService not started");
 
     this.#desiredPower = desired;
+    await this.#enqueue(() => this.#applyDesired(desired));
+  }
 
+  /** キュー内で desired を適用する。判定をキュー内で行うことで、
+   *  連続要求でも最新の観測値・最新意図に基づいて動作する（coalesce）。 */
+  async #applyDesired(desired: DesiredDisplayPower): Promise<void> {
+    if (this.#stopped) return;
+    // キュー待ち中により新しい要求が来ていたら、この古い要求は破棄する
+    if (this.#desiredPower !== desired) return;
+    // skip-if-matches: 最新の観測値が既に目標と一致するなら送らない
     const targetPower = desired === "standby" ? "off" : "on";
-    if (this.#power === targetPower && this.#commandPhase === "idle") return;
-
-    await this.#enqueue(() => this.#runCommand(desired));
+    if (this.#power === targetPower) return;
+    await this.#runCommand(desired);
   }
 
   // ────────── 実行キュー（直列化） ──────────
@@ -208,7 +222,8 @@ export class DisplayService {
       }
     } catch (error) {
       this.#commandPhase = "idle";
-      this.#error = makeError("ddc_failed", error instanceof Error ? error.message : String(error));
+      // コマンド失敗は永続エラーとして保持（次のコマンド成功までクリアしない）
+      this.#commandError = makeError("ddc_failed", error instanceof Error ? error.message : String(error));
       this.#emit("command-confirmation");
       throw error;
     }
@@ -217,6 +232,7 @@ export class DisplayService {
     this.#power = desired === "standby" ? "off" : "on";
     this.#offConsecutive = desired === "standby" ? OFF_CONFIRM_COUNT : 0;
     this.#error = null;
+    this.#commandError = null; // コマンド成功でエラー解消
 
     this.#startSettling();
     await this.#observe("command-confirmation");

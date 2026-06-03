@@ -40,6 +40,9 @@ describe("createDisplayService", () => {
     // start() しなければ ddcutil は呼ばれない（生成のみ確認）
     expect(svc.enabled).toBe(true);
     expect(svc.getStatus()).not.toBeNull();
+    // ddc-ci では simulateExternal を持たない（_fake エンドポイントを弾くため）
+    if (!svc.enabled) throw new Error("expected enabled service");
+    expect(svc.simulateExternal).toBeUndefined();
   });
 
   it("enabled=true driver=fake の simulateExternal が subscribe コールバックを呼ぶ", async () => {
@@ -53,7 +56,8 @@ describe("createDisplayService", () => {
     await svc.start();
 
     if (!svc.enabled) throw new Error("expected enabled service");
-    svc.simulateExternal("off");
+    expect(svc.simulateExternal).toBeTypeOf("function");
+    svc.simulateExternal?.("off");
     await new Promise((r) => setTimeout(r, 10)); // キュー経由の反映を待つ
 
     expect(events.some((e) => e.power === "off" && e.origin === "external")).toBe(true);

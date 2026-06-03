@@ -139,6 +139,40 @@ describe("DisplayService", () => {
     service.stop();
   });
 
+  it("⑨ 相反する要求が連続しても最新の意図が勝つ（coalesce）", async () => {
+    await startAndInitial(service); // power=on
+    const setStandbySpy = vi.spyOn(driver, "setStandby");
+    const setPowerOnSpy = vi.spyOn(driver, "setPowerOn");
+
+    // power=on の状態で standby → on を連続要求。最終意図は on
+    await Promise.all([service.setDesiredPower("standby"), service.setDesiredPower("on")]);
+    service.stop();
+
+    const status = service.getStatus();
+    // 最新意図 on と観測 power が矛盾しないこと（standby だけ実行されて off で残らない）
+    expect(status.desiredPower).toBe("on");
+    expect(status.power).toBe("on");
+    // standby が実行された場合でも、最後に on が送られて整合する
+    if (setStandbySpy.mock.calls.length > 0) {
+      expect(setPowerOnSpy).toHaveBeenCalled();
+    }
+  });
+
+  it("⑩ コマンド失敗エラーは次の正常 poll でも消えない（commandError 永続）", async () => {
+    await startAndInitial(service);
+    vi.spyOn(driver, "setStandby").mockRejectedValue(new Error("permission denied"));
+
+    await expect(service.setDesiredPower("standby")).rejects.toThrow();
+    expect(service.getStatus().error?.code).toBe("ddc_failed");
+
+    // 正常な observe（poll 相当）を起こしてもエラーが残ること
+    driver.simulateExternal("on"); // readPower 成功相当の状態更新
+    await tick();
+    expect(service.getStatus().error?.code).toBe("ddc_failed");
+
+    service.stop();
+  });
+
   it("⑧ DDC アクセスは直列化される（poll とコマンドが重ならない）", async () => {
     let concurrent = 0;
     let maxConcurrent = 0;

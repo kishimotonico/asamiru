@@ -28,19 +28,16 @@ class NullDisplayService {
   async setDesiredPower(_desired: DesiredDisplayPower): Promise<void> {
     throw Object.assign(new Error("Display control is not enabled"), { code: "not_enabled" as DisplayErrorCode });
   }
-
-  simulateExternal?(_power: "on" | "off"): void {
-    // 無効時は何もしない
-  }
 }
 
 /** 機能有効時の実サービスラッパー */
 class ActiveDisplayService {
   readonly enabled = true as const;
   readonly #service: DisplayService;
-  readonly #fakeDriver: FakeDisplayDriver | null;
   readonly #selectorLabel: string;
   readonly #connector: string;
+  /** fake driver のときだけ定義される。ddc-ci では undefined（_fake エンドポイントを弾く）*/
+  readonly simulateExternal?: (power: "on" | "off") => void;
 
   constructor(
     service: DisplayService,
@@ -48,9 +45,11 @@ class ActiveDisplayService {
     meta: { selectorLabel: string; connector: string },
   ) {
     this.#service = service;
-    this.#fakeDriver = fakeDriver;
     this.#selectorLabel = meta.selectorLabel;
     this.#connector = meta.connector;
+    if (fakeDriver) {
+      this.simulateExternal = (power) => fakeDriver.simulateExternal(power);
+    }
   }
 
   getStatus(): DisplayStatus {
@@ -81,11 +80,6 @@ class ActiveDisplayService {
 
   async setDesiredPower(desired: DesiredDisplayPower): Promise<void> {
     return this.#service.setDesiredPower(desired);
-  }
-
-  /** FakeDisplayDriver のシミュレーション（driver=fake の場合のみ有効） */
-  simulateExternal(power: "on" | "off"): void {
-    this.#fakeDriver?.simulateExternal(power);
   }
 }
 

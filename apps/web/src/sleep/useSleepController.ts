@@ -114,31 +114,30 @@ export function useSleepController(): { sleeping: boolean; now: number } {
       }
     };
 
-    // 起動時・SSE 再接続時の再同期。powerOrigin（瞬間値）に頼らず、観測 power と
-    // 現在のスリープ意図の不整合を突合して補正する（切断中の物理操作の自己修復）。
-    async function reconcileDisplayStatus() {
+    // 起動時の初回同期。スリープ意図は変えず、有効状態と観測 power をセットするだけ。
+    // 実際の待機・復帰は desired power 送信 Effect が現在の意図に基づいて行う。
+    // （起動時にモニターが ON でも「物理 ON 操作」とは扱わない。就寝帯なら standby が送られる）
+    async function initDisplayStatus() {
       try {
         const info = await fetchDisplayStatus();
         if (!info.enabled) return;
-
         setDisplayEnabled(true);
         setDisplayPower(info.power);
+      } catch (err) {
+        console.warn("[display] fetchDisplayStatus failed:", err);
+      }
+    }
 
-        const nowMs = Date.now();
-        const scheduleSleeping = scheduleSleepingNow(new Date(nowMs), settingsRef.current);
-        if (info.power === "off") {
-          // 起きているべき時間帯にモニターが消えている = 外部 OFF とみなす
-          if (!scheduleSleeping) setManualSleeping(true);
-          // 就寝帯での OFF は正常なので何もしない
-        } else if (info.power === "on") {
-          // モニターがついているのにアプリが寝る意図なら、外部 ON に追従して起床
-          const intendSleep =
-            manualSleepingRef.current || (scheduleSleeping && awakeUntilRef.current <= nowMs);
-          if (intendSleep) {
-            setManualSleeping(false);
-            setAwakeUntil(nowMs + settingsRef.current.manualWakeDurationMin * 60_000);
-            setNow(nowMs);
-          }
+    // SSE 再接続時の再同期。切断中に起きた物理操作を、最後に観測した power との
+    // 実差分として検知する（瞬間値の powerOrigin には頼らない）。
+    async function reconcileOnReconnect() {
+      try {
+        const info = await fetchDisplayStatus();
+        if (!info.enabled) return;
+        const prev = displayPowerRef.current;
+        setDisplayPower(info.power);
+        if (prev !== "unknown" && info.power !== "unknown" && info.power !== prev) {
+          applyExternalPower(info.power);
         }
       } catch (err) {
         console.warn("[display] fetchDisplayStatus failed:", err);
@@ -155,14 +154,13 @@ export function useSleepController(): { sleeping: boolean; now: number } {
           }
         },
         onReconnect: () => {
-          // SSE 再接続時に GET で現在状態を再同期（切断中の物理操作を自己修復）
-          void reconcileDisplayStatus();
+          void reconcileOnReconnect();
         },
       });
       cleanup = sub.unsubscribe;
     }
 
-    void reconcileDisplayStatus().then(() => {
+    void initDisplayStatus().then(() => {
       if (displayEnabledRef.current) {
         setupSubscription();
       }
@@ -188,6 +186,14 @@ export function useSleepController(): { sleeping: boolean; now: number } {
       setManualSleeping(false);
       extend(nowMs);
       suppressInputUntilRef.current = nowMs + INPUT_SUPPRESS_MS;
+      // displayUnavailable（モニターOFF）でスリープしていた場合は、desiredSleeping が
+      // 既に false で送信 Effect が再実行されないため、明示的に復帰要求を送る。
+      // 自動復帰コマンドが失敗していたケースの再試行手段になる。
+      if (displayEnabledRef.current && displayPowerRef.current === "off") {
+        putDesiredPower("on").catch((err) => {
+          console.warn("[display] putDesiredPower failed:", err);
+        });
+      }
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
