@@ -382,6 +382,12 @@ ASAMIRU_DISPLAY_NUMBER=1
 
 通常の変化なし polling はログを出さない。ログはアプリ内ファイルへ保存せず、systemd 等のプロセス管理側で保持する。
 
+### 実機確認で判明したSSE購読開始の競合
+
+初回の `GET /api/system/display` が `enabled: true` を返した後、Web が `setDisplayEnabled(true)` を呼び、その直後に更新前の `displayEnabledRef.current` を参照してSSE購読の開始可否を判断していた。このため、React stateの反映タイミングによっては `GET` と desired power の送信は動く一方、`GET /api/system/display/events` が開始されず、サーバーが外部ON/OFFを検知してもクライアントが復帰しない状態になった。
+
+初回GETの戻り値を直接使ってSSE購読を開始するよう修正し、state更新タイミングへの依存をなくした。クライアント側でも初回状態、SSE接続、受信イベント、外部電源操作の反映をブラウザコンソールへ出力する。
+
 ### display-control パッケージ責務
 
 - `DisplayDriver` interface に `readConnection()`、`readPower()`、`setStandby()`、`setPowerOn()` を定義する。

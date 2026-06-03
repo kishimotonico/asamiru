@@ -117,14 +117,22 @@ export function useSleepController(): { sleeping: boolean; now: number } {
     // 起動時の初回同期。スリープ意図は変えず、有効状態と観測 power をセットするだけ。
     // 実際の待機・復帰は desired power 送信 Effect が現在の意図に基づいて行う。
     // （起動時にモニターが ON でも「物理 ON 操作」とは扱わない。就寝帯なら standby が送られる）
-    async function initDisplayStatus() {
+    async function initDisplayStatus(): Promise<boolean> {
       try {
         const info = await fetchDisplayStatus();
-        if (!info.enabled) return;
+        if (!info.enabled) {
+          console.info("[display] monitor integration is disabled");
+          return false;
+        }
+        console.info(
+          `[display] initial status power=${info.power} origin=${info.powerOrigin} connection=${info.connection}`,
+        );
         setDisplayEnabled(true);
         setDisplayPower(info.power);
+        return true;
       } catch (err) {
         console.warn("[display] fetchDisplayStatus failed:", err);
+        return false;
       }
     }
 
@@ -145,25 +153,31 @@ export function useSleepController(): { sleeping: boolean; now: number } {
     }
 
     function setupSubscription() {
+      console.info("[display] subscribing to monitor events");
       const sub = subscribeDisplayEvents({
         onStatus: (status) => {
+          console.info(
+            `[display] event power=${status.power} origin=${status.powerOrigin} connection=${status.connection}`,
+          );
           setDisplayPower(status.power);
           // 外部操作のみスリープ意図へ反映（command/unknown は無視）
           if (status.powerOrigin === "external") {
+            console.info(`[display] applying external power=${status.power}`);
             applyExternalPower(status.power);
           }
         },
         onReconnect: () => {
+          console.info("[display] monitor event stream connected");
           void reconcileOnReconnect();
         },
       });
       cleanup = sub.unsubscribe;
     }
 
-    void initDisplayStatus().then(() => {
-      if (displayEnabledRef.current) {
-        setupSubscription();
-      }
+    void initDisplayStatus().then((enabled) => {
+      // setDisplayEnabled() の React state 反映前でも、GET の結果に基づいて購読を開始する。
+      // ref を見ると初回レンダーの false が残り、SSE 購読が開始されない場合がある。
+      if (enabled) setupSubscription();
     });
 
     return () => {
