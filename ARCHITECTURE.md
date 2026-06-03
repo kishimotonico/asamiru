@@ -43,7 +43,7 @@ packages/
 - `useDisplaySync` … 物理モニター連動。desired power の送信（skip-if-matches）、SSE 購読、外部 ON/OFF のスリープ意図への橋渡しを担う。アプリの意図そのものは持たない。
 - `useGlobalInput` … キーボード・ポインタ・ダブルクリックを window の capture リスナで1か所に集約する。
 
-意図と物理状態を二重管理しない設計（意図はクライアント、物理状態はサーバー）の根拠は [ADR: client sleep intent / server display state](docs/adr/2026-06-03-client-sleep-intent-server-display-state.md) を参照。
+意図と物理状態を二重管理しない設計（意図はクライアント、物理状態はサーバー）の根拠は [ADR: client sleep intent / server display state](docs/adr/2026-06-03-client-sleep-intent-server-display-state.md) を参照。状態モデル・遷移図・操作仕様・課題と改善提案は [スリープ / ディスプレイ連動 仕様](docs/sleep-display-spec.md) にまとめる。
 
 ```
 effectiveSleeping = desiredSleeping || (モニター有効 && 物理OFF)
