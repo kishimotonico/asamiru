@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "PORTLESS_HTTPS=0 PORTLESS_PORT=1355 portless run --name asa-api tsx watch src/index.ts",
     "build": "tsc -b",
-    "start": "node dist/index.js",
+    "start": "node --env-file-if-exists=../../.env.local dist/index.js",
     "scrape:timetable": "tsx scripts/scrape-timetable.ts",
     "test": "vitest run"
   },

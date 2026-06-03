@@ -19,6 +19,7 @@ describe("createDisplayService", () => {
   });
 
   it("enabled=true driver=fake でサービスが起動できる", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const svc = createDisplayService({
       enabled: true,
       driver: "fake",
@@ -27,7 +28,14 @@ describe("createDisplayService", () => {
     await svc.start();
     expect(svc.enabled).toBe(true);
     expect(svc.getStatus()).not.toBeNull();
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining("[display] starting driver=fake target=in-memory connector=HDMI-A-1"),
+    );
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining("[display] status trigger=initial target=in-memory connector=HDMI-A-1"),
+    );
     svc.stop();
+    logSpy.mockRestore();
   });
 
   it("enabled=true driver=ddc-ci で selector を指定して生成できる", () => {
@@ -46,6 +54,7 @@ describe("createDisplayService", () => {
   });
 
   it("enabled=true driver=fake の simulateExternal が subscribe コールバックを呼ぶ", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const svc = createDisplayService({
       enabled: true,
       driver: "fake",
@@ -61,6 +70,10 @@ describe("createDisplayService", () => {
     await new Promise((r) => setTimeout(r, 10)); // キュー経由の反映を待つ
 
     expect(events.some((e) => e.power === "off" && e.origin === "external")).toBe(true);
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining("power=off origin=external"),
+    );
     svc.stop();
+    logSpy.mockRestore();
   });
 });

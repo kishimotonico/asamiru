@@ -37,6 +37,26 @@ pnpm start   # API を起動（apps/web/dist も配信）
 
 `.env.local` の `VITE_*` はビルド時に埋め込まれるため、設定変更後は再ビルドが必要。
 
+### Raspberry Pi のモニター連動
+
+モニター連動は既定で無効。`.env.local`または実行時の環境変数で明示的に有効化する。`pnpm start`はルートの`.env.local`をAPI実行時にも読み込む。
+
+```sh
+# .env.local: ddcutil --display 1 を使う例
+ASAMIRU_DISPLAY_ENABLED=true
+ASAMIRU_DISPLAY_NUMBER=1
+
+# またはシェルで一時的に指定
+ASAMIRU_DISPLAY_ENABLED=true ASAMIRU_DISPLAY_NUMBER=1 pnpm start
+
+# ddcutil --bus 10 を使う例（bus 指定を優先）
+ASAMIRU_DISPLAY_ENABLED=true ASAMIRU_DDC_BUS=10 pnpm start
+```
+
+`ASAMIRU_DDC_BUS`が未指定なら`ASAMIRU_DISPLAY_NUMBER`、それも未指定なら`--display 1`を使う。起動時には、実際に選ばれた`ddcutil`対象、DRM connector、初回の接続・電源判定を標準出力へ表示する。起動後もON/OFF、接続状態、制御要求、エラーの変化を表示する。
+
+ログはアプリ内のファイルには保存せず、標準出力・標準エラーへ出す。systemdで起動している場合は`journalctl`で確認する。
+
 ## 設定
 
 `.env.local` で表示対象を設定する。

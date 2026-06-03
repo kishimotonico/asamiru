@@ -34,17 +34,21 @@ class NullDisplayService {
 class ActiveDisplayService {
   readonly enabled = true as const;
   readonly #service: DisplayService;
+  readonly #driverLabel: string;
   readonly #selectorLabel: string;
   readonly #connector: string;
+  #diagnosticUnsubscribe: (() => void) | null = null;
+  #lastLoggedStatus: DisplayStatus | null = null;
   /** fake driver のときだけ定義される。ddc-ci では undefined（_fake エンドポイントを弾く）*/
   readonly simulateExternal?: (power: "on" | "off") => void;
 
   constructor(
     service: DisplayService,
     fakeDriver: FakeDisplayDriver | null,
-    meta: { selectorLabel: string; connector: string },
+    meta: { driverLabel: string; selectorLabel: string; connector: string },
   ) {
     this.#service = service;
+    this.#driverLabel = meta.driverLabel;
     this.#selectorLabel = meta.selectorLabel;
     this.#connector = meta.connector;
     if (fakeDriver) {
@@ -61,25 +65,77 @@ class ActiveDisplayService {
   }
 
   async start(): Promise<void> {
+    console.log(
+      `[display] starting driver=${this.#driverLabel} target=${this.#selectorLabel} connector=${this.#connector}`,
+    );
     await this.#service.start();
+
+    const status = this.#service.getStatus();
+    this.#logStatus("initial", status, true);
+
     // 起動時の初回観測でモニターが応答しなければ警告（暗黙無効化はしない）。
     // 番号・connector の指定ミスを起動時点で気づけるようにする。
-    const status = this.#service.getStatus();
     if (status.error || status.connection === "unknown") {
       const reason = status.error ? `error=${status.error.code}` : `connection=${status.connection}`;
       console.warn(
-        `[display] WARNING: モニターが応答しません (${this.#selectorLabel}, connector=${this.#connector})。` +
-          ` ddcutil detect で番号を、/sys/class/drm で connector 名を確認してください。${reason}`,
+        `[display] WARNING monitor did not respond target=${this.#selectorLabel} connector=${this.#connector} ` +
+          `${reason}; check ddcutil detect and /sys/class/drm`,
       );
+    }
+
+    if (!this.#diagnosticUnsubscribe) {
+      this.#diagnosticUnsubscribe = this.#service.subscribe((event) => {
+        this.#logStatus(event.trigger, event.status);
+      });
     }
   }
 
   stop(): void {
+    this.#diagnosticUnsubscribe?.();
+    this.#diagnosticUnsubscribe = null;
     this.#service.stop();
   }
 
   async setDesiredPower(desired: DesiredDisplayPower): Promise<void> {
-    return this.#service.setDesiredPower(desired);
+    console.log(
+      `[display] desired-power requested target=${this.#selectorLabel} connector=${this.#connector} desired=${desired}`,
+    );
+    try {
+      await this.#service.setDesiredPower(desired);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(
+        `[display] desired-power failed target=${this.#selectorLabel} connector=${this.#connector} ` +
+          `desired=${desired} error=${JSON.stringify(message)}`,
+      );
+      throw error;
+    }
+  }
+
+  #logStatus(trigger: string, status: DisplayStatus, force = false): void {
+    const previous = this.#lastLoggedStatus;
+    const errorKey = status.error ? `${status.error.code}:${status.error.message}` : null;
+    const previousErrorKey = previous?.error ? `${previous.error.code}:${previous.error.message}` : null;
+    const changed =
+      !previous ||
+      previous.connection !== status.connection ||
+      previous.power !== status.power ||
+      previous.desiredPower !== status.desiredPower ||
+      previous.commandPhase !== status.commandPhase ||
+      previousErrorKey !== errorKey;
+
+    this.#lastLoggedStatus = status;
+    if (!force && !changed) return;
+
+    const error = status.error
+      ? ` error=${status.error.code}:${JSON.stringify(status.error.message)}`
+      : "";
+    console.log(
+      `[display] status trigger=${trigger} target=${this.#selectorLabel} connector=${status.connector} ` +
+        `connection=${status.connection} power=${status.power} origin=${status.powerOrigin} ` +
+        `desired=${status.desiredPower ?? "none"} phase=${status.commandPhase} ` +
+        `observedAt=${status.lastObservedAt ?? "none"}${error}`,
+    );
   }
 }
 
@@ -104,18 +160,21 @@ export function createDisplayService(options: DisplayServiceOptions): CreatedDis
 
   let driver: DisplayDriver;
   let fakeDriver: FakeDisplayDriver | null = null;
+  let driverLabel: string;
   let selectorLabel: string;
 
   if (options.driver === "fake") {
     fakeDriver = new FakeDisplayDriver("on");
     driver = fakeDriver;
-    selectorLabel = "driver=fake";
+    driverLabel = "fake";
+    selectorLabel = "in-memory";
   } else {
     driver = new DdcCiDisplayDriver({
       selector: options.selector,
       connector: options.connector,
     });
-    selectorLabel = `${options.selector.kind}=${options.selector.value}`;
+    driverLabel = "ddc-ci";
+    selectorLabel = `--${options.selector.kind} ${options.selector.value}`;
   }
 
   const service = new DisplayService(driver, {
@@ -124,6 +183,7 @@ export function createDisplayService(options: DisplayServiceOptions): CreatedDis
   });
 
   return new ActiveDisplayService(service, fakeDriver, {
+    driverLabel,
     selectorLabel,
     connector: options.connector,
   });

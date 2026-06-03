@@ -360,12 +360,27 @@ ASAMIRU_DISPLAY_NUMBER=1
 
 `ASAMIRU_DISPLAY_ENABLED` の既定値は false とし、明示的に有効化された場合だけ `packages/display-control` の実行時サービスを生成する。DDC/CI が利用不能な場合はエラーを表示し、暗黙に無効化しない。
 
+`pnpm start` はルートの `.env.local` を Node の `--env-file-if-exists` で読み込む。これにより、Vite のビルド時設定だけでなく、`ASAMIRU_DISPLAY_*` / `ASAMIRU_DDC_BUS` も本番APIプロセスへ渡る。シェルやsystemdで明示した環境変数は `.env.local` より優先する。
+
 実行時オプトアウトの挙動:
 
 - 未設定または `false`: `ddcutil`、`udevadm`、DRM sysfs、I2C デバイスへアクセスせず、polling や子プロセスも起動しない。
 - `true`: DDC/CI の利用可否を検証し、モニター制御を有効化する。起動時の初回観測でモニターが応答しなければ警告ログを出す（bus/display 番号や connector の指定ミスを起動時点で検知できる）。暗黙無効化はしない。
 - 無効時も既存のブラウザ内スリープ、黒画面、Dashboard アンマウント、API リクエスト停止は通常どおり動作する。
 - 同じ API/Web ビルドを Raspberry Pi とモニターなし環境で利用できる。ビルド時フラグは設けない。
+
+### 実行時診断ログ
+
+`pnpm start` 時に、モニター連動が無効ならその旨を表示する。有効時は、実際に選択された `ddcutil` 対象（`--bus N` または `--display N`）、DRM connector、初回 snapshot の `connection` / `power` / `error` を必ず表示する。
+
+起動後は、次の変化を標準出力・標準エラーへ表示する。
+
+- モニター電源の `on` / `off` / `unknown` 遷移
+- DRM connector の接続状態遷移
+- desired power の制御要求と失敗
+- 観測エラー、コマンドエラーの発生・解消
+
+通常の変化なし polling はログを出さない。ログはアプリ内ファイルへ保存せず、systemd 等のプロセス管理側で保持する。
 
 ### display-control パッケージ責務
 

@@ -313,10 +313,8 @@ serve(
   async (info) => {
     console.log(`asamiru api listening on http://localhost:${info.port}`);
     await displayService.start();
-    if (displayService.enabled) {
-      console.log(
-        `display control enabled: connector=${process.env.ASAMIRU_DISPLAY_CONNECTOR ?? "HDMI-A-1"} driver=${process.env.ASAMIRU_DISPLAY_DRIVER ?? "ddc-ci"}`,
-      );
+    if (!displayService.enabled) {
+      console.log("[display] disabled: set ASAMIRU_DISPLAY_ENABLED=true to enable monitor integration");
     }
   },
 );
