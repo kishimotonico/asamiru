@@ -35,7 +35,7 @@ pnpm start   # API を起動（apps/web/dist も配信）
 - `PORT`: 待ち受けポート（既定 `8787`）。
 - `ASAMIRU_WEB_DIST`: 配信する Web ビルドの場所を変えたいときに指定。未指定なら `apps/web/dist` を使う。
 
-`.env.local` の `VITE_*` はビルド時に埋め込まれるため、設定変更後は再ビルドが必要。
+`VITE_*` はビルド時に埋め込まれる。`VITE_API_ORIGIN` を変更した場合は再ビルドが必要。
 
 ### Raspberry Pi のモニター連動
 
@@ -59,13 +59,17 @@ ASAMIRU_DISPLAY_ENABLED=true ASAMIRU_DDC_BUS=10 pnpm start
 
 ## 設定
 
-`.env.local` で表示対象を設定する。
+表示対象の設定はブラウザの **localStorage**（jotai の atomWithStorage）で管理する。画面右上の歯車アイコン → 設定モーダルから変更できる。
 
-- `VITE_KEIO_BOARDING_STATION`: 京王線・京王相模原線の乗車駅名。opentidkeio の列車別時刻表に含まれる駅名と一致させる。
-- `VITE_KEIO_DIRECTIONS`: `both`。現フェーズでは両方面表示。
-- `VITE_WEATHER_LAT` / `VITE_WEATHER_LON`: 天気取得地点。既定例は東京。
+設定可能な項目:
+- 天気取得地点（緯度・経度）
+- 乗車駅・監視路線・表示本数
+- スリープスケジュール（開始・終了時刻）
+- モニター連動の状態表示
 
-天気はブラウザから直接取得する。次発列車と路線ごとの運行情報は `apps/api` が取得・正規化し、Web は `/api/rail/departures` と `/api/rail/line-status` を参照する。
+`.env.local` に `VITE_*` を書く必要はない。dev 時に API オリジンを変えたい場合のみ `VITE_API_ORIGIN` を指定する（本番ビルドでは不要）。
+
+天気はブラウザから Open-Meteo を直接取得する。次発列車と路線ごとの運行情報は `apps/api` が取得・正規化し、Web は **POST** `/api/rail/departures` と **POST** `/api/rail/line-status` で取得する。
 
 ## Monorepo
 

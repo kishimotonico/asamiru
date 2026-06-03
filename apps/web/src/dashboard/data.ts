@@ -1,1 +1,0 @@
-export { scheduleData } from "./scheduleData";
