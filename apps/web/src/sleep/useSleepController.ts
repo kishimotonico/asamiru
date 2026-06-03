@@ -1,5 +1,5 @@
 import { useAtomValue } from "jotai";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { isTextInputTarget } from "../lib/dom";
 import { scheduleAwakeNow, scheduleSleepingNow, sleepSettingsAtom } from "./sleepSettingsAtom";
 import { useFullscreen } from "./useFullscreen";
@@ -19,8 +19,10 @@ const INPUT_SUPPRESS_MS = 300;
  * sleeping = scheduleSleeping(now) && now >= awakeUntil
  * desiredSleeping = manualSleeping || sleeping
  * effectiveSleeping = desiredSleeping || (displayEnabled && displayPower === "off")
+ *
+ * sleepNow は手動スリープに入る操作（s キーと同等）を UI から呼ぶための関数。
  */
-export function useSleepController(): { sleeping: boolean; now: number } {
+export function useSleepController(): { sleeping: boolean; now: number; sleepNow: () => void } {
   const settings = useAtomValue(sleepSettingsAtom);
   const { toggle: toggleFullscreen } = useFullscreen();
 
@@ -58,6 +60,13 @@ export function useSleepController(): { sleeping: boolean; now: number } {
   displayPowerRef.current = displayPower;
   const displayEnabledRef = useRef(displayEnabled);
   displayEnabledRef.current = displayEnabled;
+
+  // 手動スリープに入る（s キーと同じ。起床帯でも manualSleeping=true で維持）。
+  // display 有効時は desired power 送信 Effect が standby を送る。
+  const sleepNow = useCallback(() => {
+    setManualSleeping(true);
+    setNow(Date.now());
+  }, []);
 
   // 時刻 tick（境界・期限の再評価用）
   useEffect(() => {
@@ -278,5 +287,5 @@ export function useSleepController(): { sleeping: boolean; now: number } {
     };
   }, []);
 
-  return { sleeping: effectiveSleeping, now };
+  return { sleeping: effectiveSleeping, now, sleepNow };
 }

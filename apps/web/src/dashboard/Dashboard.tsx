@@ -16,9 +16,10 @@ type AccentStyle = CSSProperties & { "--accent": string };
 
 type DashboardProps = {
   accent?: string;
+  onSleepClick?: () => void;
 };
 
-export function Dashboard({ accent = "#3a6b8a" }: DashboardProps) {
+export function Dashboard({ accent = "#3a6b8a", onSleepClick }: DashboardProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
@@ -30,6 +31,7 @@ export function Dashboard({ accent = "#3a6b8a" }: DashboardProps) {
         <ClockCard
           className="2xl:col-span-2"
           onSettingsClick={() => setSettingsOpen(true)}
+          onSleepClick={onSleepClick}
         />
         <AsyncCardBoundary
           fallback={<TrainsLoadingCard className="2xl:row-span-2" />}

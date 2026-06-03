@@ -4,11 +4,11 @@ import { SleepScreen } from "./sleep/SleepScreen";
 import { useSleepController } from "./sleep/useSleepController";
 
 export default function App() {
-  const { sleeping, now } = useSleepController();
+  const { sleeping, now, sleepNow } = useSleepController();
 
   return (
     <>
-      {sleeping ? <SleepScreen now={now} /> : <Dashboard />}
+      {sleeping ? <SleepScreen now={now} /> : <Dashboard onSleepClick={sleepNow} />}
       {import.meta.env.DEV && <DebugOverlay />}
     </>
   );
