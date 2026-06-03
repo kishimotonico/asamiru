@@ -21,6 +21,11 @@ async function startAndInitial(service: DisplayService): Promise<DisplayEvent[]>
   return events;
 }
 
+/** キュー経由の非同期処理が反映されるのを待つ */
+function tick(ms = 10): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 describe("DisplayService", () => {
   let driver: FakeDisplayDriver;
   let service: DisplayService;
@@ -48,6 +53,7 @@ describe("DisplayService", () => {
     const events = await startAndInitial(service);
 
     driver.simulateExternal("off");
+    await tick(); // キュー経由の反映を待つ
     service.stop();
 
     const externalOff = events.filter(
@@ -62,6 +68,7 @@ describe("DisplayService", () => {
     const events = await startAndInitial(service);
 
     driver.simulateExternal("on");
+    await tick(); // キュー経由の反映を待つ
     service.stop();
 
     const externalOn = events.filter(
@@ -106,5 +113,59 @@ describe("DisplayService", () => {
     // 最初の initial snapshot では power は unknown のまま（単発 off では確定しない）
     const initialEvent = events.find((e) => e.trigger === "initial");
     expect(initialEvent?.status.power).toBe("unknown");
+  });
+
+  it("⑥ 初回観測（initial）は power=on でも external 扱いにしない", async () => {
+    // 起動時にモニターが既に on の場合、起動しただけで external（物理ON操作）と誤判定しない
+    const events = await startAndInitial(service);
+    service.stop();
+
+    const initialEvent = events.find((e) => e.trigger === "initial");
+    expect(initialEvent?.status.power).toBe("on");
+    expect(initialEvent?.status.powerOrigin).toBe("unknown");
+    // initial 由来で external イベントが一切出ていないこと
+    expect(events.every((e) => e.status.powerOrigin !== "external")).toBe(true);
+  });
+
+  it("⑦ DDC コマンド失敗時は setDesiredPower が reject する", async () => {
+    await startAndInitial(service);
+
+    vi.spyOn(driver, "setStandby").mockRejectedValue(new Error("ddcutil failed: permission denied"));
+
+    await expect(service.setDesiredPower("standby")).rejects.toThrow(/permission denied/);
+    // エラーが status に記録される
+    expect(service.getStatus().error?.code).toBe("ddc_failed");
+
+    service.stop();
+  });
+
+  it("⑧ DDC アクセスは直列化される（poll とコマンドが重ならない）", async () => {
+    let concurrent = 0;
+    let maxConcurrent = 0;
+    const track = async <T>(fn: () => T): Promise<T> => {
+      concurrent += 1;
+      maxConcurrent = Math.max(maxConcurrent, concurrent);
+      await new Promise((r) => setTimeout(r, 5));
+      concurrent -= 1;
+      return fn();
+    };
+    vi.spyOn(driver, "readPower").mockImplementation(() => track(() => ({ power: "on" as const, error: null })));
+    vi.spyOn(driver, "readConnection").mockImplementation(() =>
+      track(() => ({ connection: "connected" as const, error: null })),
+    );
+    vi.spyOn(driver, "setStandby").mockImplementation(() => track(() => undefined));
+
+    await startAndInitial(service);
+    // コマンドと複数 snapshot を同時に投げても直列化されること
+    await Promise.all([
+      service.setDesiredPower("standby"),
+      service.setDesiredPower("on"),
+      service.setDesiredPower("standby"),
+    ]);
+    service.stop();
+
+    // readConnection と readPower は同じ observe 内で並行（Promise.allSettled）するため最大2。
+    // 異なるタスク（poll/command）が重なって 3 以上になっていないこと。
+    expect(maxConcurrent).toBeLessThanOrEqual(2);
   });
 });

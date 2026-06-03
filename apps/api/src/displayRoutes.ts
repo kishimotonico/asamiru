@@ -42,20 +42,15 @@ export function createDisplayServiceFromEnv(): CreatedDisplayService {
 export function createDisplayRoutes(svc: CreatedDisplayService): Hono {
   const app = new Hono();
 
-  // loopback 制限ミドルウェア
-  // getConnInfo は @hono/node-server のコンテキスト外（テスト環境等）では例外をスローする。
-  // その場合はアドレスが不明として扱い、実環境では拒否するが、
-  // テスト環境（サーバーなし）では例外をキャッチして通過させる。
+  // loopback 制限ミドルウェア（fail-close: 接続元が確認できない場合は拒否）
   app.use("/api/system/display/*", async (c, next) => {
-    let addr: string;
+    let addr: string | undefined;
     try {
-      const info = getConnInfo(c);
-      addr = info.remote.address ?? "";
+      addr = getConnInfo(c).remote.address;
     } catch {
-      // Node サーバーコンテキスト外（テスト等）では conninfo 取得不可 → 通過
-      return next();
+      addr = undefined;
     }
-    if (!isLoopback(addr)) {
+    if (!addr || !isLoopback(addr)) {
       return c.json({ error: "Forbidden: display control is only available from localhost" }, 403);
     }
     return next();

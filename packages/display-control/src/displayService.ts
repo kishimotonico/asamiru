@@ -60,16 +60,18 @@ export class DisplayService {
   /** OFF 連続観測カウンタ */
   #offConsecutive = 0;
 
-  // 実行フラグ
+  // 実行管理
   #started = false;
   #stopped = false;
-  #busy = false;
   #pollTimer: ReturnType<typeof setInterval> | null = null;
   #hotplugDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   #udevStop: (() => void) | null = null;
-  /** udev 再起動バックオフ ms */
   #udevBackoff = UDEV_BACKOFF_INITIAL_MS;
   #fakeUnsubscribe: (() => void) | null = null;
+
+  // DRM/DDC アクセスを直列化する実行キュー
+  #queue: Promise<void> = Promise.resolve();
+  #pending = 0;
 
   constructor(driver: DisplayDriver, config: DisplayServiceConfig) {
     this.#driver = driver;
@@ -111,15 +113,15 @@ export class DisplayService {
       });
     }
 
-    // 初回 snapshot
-    await this.#takeSnapshot("initial");
+    // 初回 snapshot（外部操作判定はしない）
+    await this.#enqueue(() => this.#observe("initial"));
 
     // udev 常駐監視を開始
     this.#startUdev();
 
-    // polling
+    // polling（skip-if-busy）
     this.#pollTimer = setInterval(() => {
-      void this.#pollIfIdle();
+      this.#pollIfIdle();
     }, POLL_MS);
   }
 
@@ -133,27 +135,54 @@ export class DisplayService {
     if (this.#fakeUnsubscribe) this.#fakeUnsubscribe();
   }
 
-  /** desired power をサーバーへ伝達。目標 == 観測 なら送らない（skip-if-matches）*/
+  /** desired power をサーバーへ伝達。目標 == 観測 なら送らない（skip-if-matches）。
+   *  DDC コマンドが失敗した場合は例外を伝播する。 */
   async setDesiredPower(desired: DesiredDisplayPower): Promise<void> {
     if (!this.#started) throw new Error("DisplayService not started");
 
     this.#desiredPower = desired;
 
-    // skip-if-matches: 観測値が既に目標と一致
     const targetPower = desired === "standby" ? "off" : "on";
     if (this.#power === targetPower && this.#commandPhase === "idle") return;
 
-    await this.#sendCommand(desired);
+    await this.#enqueue(() => this.#runCommand(desired));
   }
 
-  // ────────── Private ──────────
+  // ────────── 実行キュー（直列化） ──────────
+
+  /** タスクをキューに積み、前のタスク完了後に直列実行する。
+   *  タスクの成否は呼び出し元へ伝播するが、後続キューは成否に関わらず進む。 */
+  #enqueue<T>(task: () => Promise<T>): Promise<T> {
+    this.#pending += 1;
+    const run = this.#queue.then(task, task);
+    // 次のキュー基点は成否を握りつぶす
+    this.#queue = run.then(
+      () => {},
+      () => {},
+    );
+    // pending カウントの減算（reject も確実に処理し unhandled rejection を防ぐ）
+    run.then(
+      () => {
+        this.#pending -= 1;
+      },
+      () => {
+        this.#pending -= 1;
+      },
+    );
+    return run;
+  }
+
+  get #busy(): boolean {
+    return this.#pending > 0;
+  }
+
+  // ────────── 観測・コマンド ──────────
 
   #emit(trigger: DisplayObservationTrigger): void {
     const event: DisplayEvent = { status: this.getStatus(), trigger };
     for (const cb of this.#subscribers) cb(event);
   }
 
-  /** settling フェーズを開始。期限が過ぎたら idle に戻す */
   #startSettling(): void {
     if (this.#settlingTimer) clearTimeout(this.#settlingTimer);
     this.#commandPhase = "settling";
@@ -164,11 +193,12 @@ export class DisplayService {
     }, SETTLING_TIMEOUT_MS);
   }
 
-  /** DDC コマンドを送り、commandPhase を更新する */
-  async #sendCommand(desired: DesiredDisplayPower): Promise<void> {
+  /** DDC コマンドを送る。失敗時は例外を伝播する（呼び出し元の setDesiredPower 経由で API へ）*/
+  async #runCommand(desired: DesiredDisplayPower): Promise<void> {
     this.#commandPhase = "commanding";
+    this.#powerOrigin = "command"; // 以降の観測はコマンド由来
     this.#lastCommandAt = new Date().toISOString();
-    this.#emit("initial"); // commandPhase 変化を通知
+    this.#emit("command-confirmation");
 
     try {
       if (desired === "standby") {
@@ -176,84 +206,83 @@ export class DisplayService {
       } else {
         await this.#driver.setPowerOn();
       }
-      this.#startSettling();
-      // コマンド直後に確認 snapshot
-      await this.#takeSnapshot("command-confirmation");
     } catch (error) {
       this.#commandPhase = "idle";
       this.#error = makeError("ddc_failed", error instanceof Error ? error.message : String(error));
       this.#emit("command-confirmation");
+      throw error;
     }
+
+    // 自分が送ったコマンドの結果は信頼する（OFF連続確定は外部観測の誤検知防止用）
+    this.#power = desired === "standby" ? "off" : "on";
+    this.#offConsecutive = desired === "standby" ? OFF_CONFIRM_COUNT : 0;
+    this.#error = null;
+
+    this.#startSettling();
+    await this.#observe("command-confirmation");
   }
 
-  async #pollIfIdle(): Promise<void> {
-    if (this.#busy || this.#stopped) return; // skip-if-busy
-    await this.#takeSnapshot("poll");
+  #pollIfIdle(): void {
+    if (this.#stopped || this.#busy) return; // skip-if-busy
+    void this.#enqueue(() => this.#observe("poll"));
   }
 
-  async #takeSnapshot(trigger: DisplayObservationTrigger): Promise<void> {
+  /** 1回の状態観測。キュー内で直列実行される前提（busy チェックはしない） */
+  async #observe(trigger: DisplayObservationTrigger): Promise<void> {
     if (this.#stopped) return;
-    if (this.#busy && trigger !== "command-confirmation") return; // コマンド確認は優先
-    this.#busy = true;
-    try {
-      const [connResult, powerResult] = await Promise.allSettled([
-        this.#driver.readConnection(),
-        this.#driver.readPower(),
-      ]);
 
-      const prevPower = this.#power;
-      const prevCommandPhase = this.#commandPhase;
+    const [connResult, powerResult] = await Promise.allSettled([
+      this.#driver.readConnection(),
+      this.#driver.readPower(),
+    ]);
 
-      // 接続状態を更新
-      if (connResult.status === "fulfilled") {
-        this.#connection = connResult.value.connection;
-      }
+    const prevPower = this.#power;
 
-      // 電源状態を更新（OFF は連続 OFF_CONFIRM_COUNT 回で確定）
-      if (powerResult.status === "fulfilled") {
-        const { power, error } = powerResult.value;
-        if (error) {
-          this.#error = makeError(
-            error.startsWith("display_not_found") ? "display_not_found" : "ddc_failed",
-            error,
-          );
-          // エラーは unknown だが OFF 確定はしない
-          this.#power = "unknown";
-          this.#offConsecutive = 0;
-        } else if (power === "off") {
-          this.#offConsecutive += 1;
-          if (this.#offConsecutive >= OFF_CONFIRM_COUNT) {
-            this.#power = "off";
-          }
-          // 確定前は現在値を維持（unknown でなければ）
-        } else {
-          this.#offConsecutive = 0;
-          this.#power = power;
-          this.#error = null;
+    // 接続状態
+    if (connResult.status === "fulfilled") {
+      this.#connection = connResult.value.connection;
+    }
+
+    // 電源状態（OFF は連続 OFF_CONFIRM_COUNT 回で確定）
+    if (powerResult.status === "fulfilled") {
+      const { power, error } = powerResult.value;
+      if (error) {
+        this.#error = makeError(
+          error.startsWith("display_not_found") ? "display_not_found" : "ddc_failed",
+          error,
+        );
+        this.#power = "unknown";
+        this.#offConsecutive = 0;
+      } else if (power === "off") {
+        this.#offConsecutive += 1;
+        if (this.#offConsecutive >= OFF_CONFIRM_COUNT) {
+          this.#power = "off";
         }
+        this.#error = null;
       } else {
         this.#offConsecutive = 0;
-        this.#power = "unknown";
+        this.#power = power;
+        this.#error = null;
       }
+    } else {
+      this.#offConsecutive = 0;
+      this.#power = "unknown";
+    }
 
-      this.#lastObservedAt = new Date().toISOString();
+    this.#lastObservedAt = new Date().toISOString();
 
-      // settling 明けに power が変化 → 外部操作と判定
-      if (prevCommandPhase === "settling" && trigger !== "command-confirmation") {
-        this.#powerOrigin = "command";
-      } else if (this.#commandPhase === "idle" && this.#power !== "unknown" && this.#power !== prevPower) {
-        this.#powerOrigin = "external";
-      } else if (trigger === "command-confirmation") {
-        this.#powerOrigin = "command";
-        // settling から idle への遷移は settling タイマーに任せる
-        if (this.#commandPhase === "settling") {
-          // settling タイムアウト前にコマンド確認が取れた場合は settling を維持
-        }
-      } else {
-        this.#powerOrigin = "unknown";
-      }
-    } finally {
-      this.#busy = false;
+    // powerOrigin 判定:
+    // - 初回観測は判定しない（起動しただけで external 扱いにしない）
+    // - コマンド中・settling 中の変化はコマンド由来
+    // - idle 中に power が変化したら外部操作
+    if (trigger === "initial") {
+      this.#powerOrigin = "unknown";
+    } else if (this.#commandPhase !== "idle") {
+      this.#powerOrigin = "command";
+    } else if (this.#power !== "unknown" && this.#power !== prevPower) {
+      this.#powerOrigin = "external";
+    } else {
+      this.#powerOrigin = "unknown";
     }
 
     this.#emit(trigger);
@@ -263,61 +292,68 @@ export class DisplayService {
 
   #startUdev(): void {
     if (this.#stopped) return;
-    const { stop, onExit } = startUdevMonitor((event) => {
-      if (this.#stopped) return;
-      // debounce: 1秒以内に複数発生した hotplug を1回にまとめる
-      if (this.#hotplugDebounceTimer) clearTimeout(this.#hotplugDebounceTimer);
-      this.#hotplugDebounceTimer = setTimeout(() => {
-        void this.#handleHotplug();
-      }, HOTPLUG_DEBOUNCE_MS);
-    });
-    this.#udevStop = stop;
 
-    onExit.then(async () => {
+    const restart = async () => {
       if (this.#stopped) return;
       await sleep(this.#udevBackoff);
       this.#udevBackoff = Math.min(this.#udevBackoff * 2, UDEV_BACKOFF_MAX_MS);
+      if (this.#stopped) return;
       // 再起動前に full snapshot（イベント取りこぼし対策）
-      await this.#takeSnapshot("poll");
+      await this.#enqueue(() => this.#observe("poll"));
       this.#startUdev();
-    });
+    };
+
+    const { stop, onExit } = startUdevMonitor(
+      () => this.#onHotplug(),
+      (err) => {
+        // 起動失敗・権限エラー等。クラッシュさせず再起動フローに委ねる
+        console.error(`[display] udevadm monitor error: ${err.message}`);
+      },
+    );
+    this.#udevStop = stop;
+
+    void onExit.then(restart);
+  }
+
+  #onHotplug(): void {
+    if (this.#stopped) return;
+    // debounce: 1秒以内に複数発生した hotplug を1回にまとめる
+    if (this.#hotplugDebounceTimer) clearTimeout(this.#hotplugDebounceTimer);
+    this.#hotplugDebounceTimer = setTimeout(() => {
+      void this.#enqueue(() => this.#handleHotplug());
+    }, HOTPLUG_DEBOUNCE_MS);
   }
 
   async #handleHotplug(): Promise<void> {
-    // リトライ付きで snapshot。unknown が続く場合は一定回数再試行
+    // リトライ付きで観測。unknown が続く場合は一定回数再試行（復帰途中の過渡状態対策）
     for (let attempt = 0; attempt <= HOTPLUG_RETRY_COUNT; attempt += 1) {
       if (this.#stopped) return;
-      const trigger: DisplayObservationTrigger = "hotplug";
-      await this.#takeSnapshotForHotplug(trigger);
+      await this.#observe("hotplug");
       if (this.#power !== "unknown") return;
       if (attempt < HOTPLUG_RETRY_COUNT) await sleep(HOTPLUG_RETRY_INTERVAL_MS);
     }
-  }
-
-  async #takeSnapshotForHotplug(trigger: DisplayObservationTrigger): Promise<void> {
-    // busy でも hotplug は強制実行（busy フラグをリセットしてから呼ぶ）
-    this.#busy = false;
-    await this.#takeSnapshot(trigger);
   }
 
   // ────────── Fake driver 用 ──────────
 
   #handleFakeExternal(power: DisplayPower): void {
     if (this.#stopped) return;
-    if (this.#commandPhase !== "idle") return; // コマンド中は無視
+    void this.#enqueue(async () => {
+      if (this.#stopped) return;
+      if (this.#commandPhase !== "idle") return; // コマンド中は無視
+      const prevPower = this.#power;
+      if (power === prevPower) return;
 
-    const prevPower = this.#power;
-    if (power === prevPower) return;
-
-    this.#power = power;
-    this.#powerOrigin = "external";
-    this.#lastObservedAt = new Date().toISOString();
-    this.#offConsecutive = power === "off" ? OFF_CONFIRM_COUNT : 0;
-    this.#emit("poll"); // fake では poll trigger で通知
+      this.#power = power;
+      this.#powerOrigin = "external";
+      this.#lastObservedAt = new Date().toISOString();
+      this.#offConsecutive = power === "off" ? OFF_CONFIRM_COUNT : 0;
+      this.#emit("poll");
+    });
   }
 }
 
-// FakeDisplayDriver かを判定するための型ガード（duck typing）
+// FakeDisplayDriver かを判定する型ガード（duck typing）
 function isFakeDriver(driver: DisplayDriver): driver is FakeDisplayDriver {
   return typeof (driver as FakeDisplayDriver).onSimulate === "function";
 }

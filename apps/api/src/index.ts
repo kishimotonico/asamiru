@@ -29,9 +29,6 @@ const lineStatusCache = new Map<string, { value: TrainLineStatus; expiresAt: num
 const displayService = createDisplayServiceFromEnv();
 
 const app = new Hono();
-
-// display ルートを既存の /api/* より前に登録
-app.route("/", createDisplayRoutes(displayService));
 const LINE_STATUS_API = "rail/line-status";
 const DEPARTURES_API = "rail/departures";
 
@@ -47,6 +44,9 @@ app.use("/api/*", async (c, next) => {
   c.header("X-Correlation-Id", correlationId);
   return runWithDebugContext(correlationId, () => next());
 });
+
+// display ルートは cors / correlationId ミドルウェアの後、既存ルートの前に登録する
+app.route("/", createDisplayRoutes(displayService));
 
 app.get("/api/health", (c) => c.json({ ok: true }));
 

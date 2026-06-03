@@ -13,16 +13,39 @@ function parseUdevBlock(block: string[]): Record<string, string> {
 
 /** udevadm monitor --kernel --subsystem-match=drm --property を起動し、
  *  DRM hotplug event 受信ごとに onHotplug を呼ぶ。
+ *  子プロセスの起動失敗・実行時エラーは onError へ通知し、onExit を resolve する
+ *  （呼び出し元の再起動フローへ委ねるため）。
  *  返値の stop() で子プロセスを終了する。 */
-export function startUdevMonitor(onHotplug: (event: HotplugEvent) => void): {
+export function startUdevMonitor(
+  onHotplug: (event: HotplugEvent) => void,
+  onError?: (err: Error) => void,
+): {
   stop: () => void;
   onExit: Promise<void>;
 } {
-  const child: ChildProcessWithoutNullStreams = spawn(
-    "udevadm",
-    ["monitor", "--kernel", "--subsystem-match=drm", "--property"],
-    { stdio: ["pipe", "pipe", "pipe"] },
-  );
+  let resolveExitFn!: () => void;
+  const onExit = new Promise<void>((resolve) => {
+    resolveExitFn = resolve;
+  });
+  let exited = false;
+  const resolveExit = () => {
+    if (exited) return;
+    exited = true;
+    resolveExitFn();
+  };
+
+  let child: ChildProcessWithoutNullStreams;
+  try {
+    child = spawn("udevadm", ["monitor", "--kernel", "--subsystem-match=drm", "--property"], {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+  } catch (err) {
+    // spawn 自体が同期的に失敗するケース（通常は error イベント経由だが念のため）
+    onError?.(err instanceof Error ? err : new Error(String(err)));
+    resolveExit();
+    return { stop: () => {}, onExit };
+  }
+
   child.stdin.end();
 
   let buffer = "";
@@ -46,8 +69,14 @@ export function startUdevMonitor(onHotplug: (event: HotplugEvent) => void): {
     }
   });
 
-  const onExit = new Promise<void>((resolve) => {
-    child.once("exit", () => resolve());
+  // error イベント（udevadm 不在・権限エラー等）。未処理にするとプロセスがクラッシュする
+  child.once("error", (err) => {
+    onError?.(err instanceof Error ? err : new Error(String(err)));
+    resolveExit();
+  });
+
+  child.once("exit", () => {
+    resolveExit();
   });
 
   return {

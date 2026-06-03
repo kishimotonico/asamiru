@@ -54,5 +54,6 @@ apps/
   web/      # Vite + React SPA
   api/      # Hono backend
 packages/
+  display-control/ # Raspberry Pi の物理モニター制御（Node 専用・オプショナル）
   shared/   # shared types and watched train lines
 ```

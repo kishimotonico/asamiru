@@ -84,9 +84,10 @@ export function useSleepController(): { sleeping: boolean; now: number } {
     }
   }, [settings.manualWakeDurationMin]);
 
-  // desired power 送信（desiredSleeping が変化したとき）
+  // desired power 送信（desiredSleeping の変化時、および display 有効化時）。
+  // displayEnabled を依存に含めることで、起動時に後から有効化されても現在の意図を同期する。
   useEffect(() => {
-    if (!displayEnabledRef.current) return;
+    if (!displayEnabled) return;
     const desired = desiredSleeping ? "standby" : "on";
     const targetPower = desired === "standby" ? "off" : "on";
     // 観測値と一致するなら送らない（skip-if-matches）
@@ -95,33 +96,50 @@ export function useSleepController(): { sleeping: boolean; now: number } {
       // モニター制御失敗はスリープを失敗させない
       console.warn("[display] putDesiredPower failed:", err);
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [desiredSleeping]);
+  }, [desiredSleeping, displayEnabled]);
 
   // モニター制御連動（マウント時に1度だけ設定）
   useEffect(() => {
     let cleanup: (() => void) | null = null;
 
-    async function syncDisplayStatus() {
+    // 物理 ON/OFF をユーザー操作としてスリープ意図へ反映する（リアルタイムの external イベント用）
+    const applyExternalPower = (power: DisplayPower) => {
+      if (power === "off") {
+        setManualSleeping(true);
+      } else if (power === "on") {
+        const nowMs = Date.now();
+        setManualSleeping(false);
+        setAwakeUntil(nowMs + settingsRef.current.manualWakeDurationMin * 60_000);
+        setNow(nowMs);
+      }
+    };
+
+    // 起動時・SSE 再接続時の再同期。powerOrigin（瞬間値）に頼らず、観測 power と
+    // 現在のスリープ意図の不整合を突合して補正する（切断中の物理操作の自己修復）。
+    async function reconcileDisplayStatus() {
       try {
         const info = await fetchDisplayStatus();
         if (!info.enabled) return;
 
         setDisplayEnabled(true);
+        setDisplayPower(info.power);
 
-        // 外部操作（人が操作したモニター状態）だけをスリープ意図へ反映
-        if (info.powerOrigin === "external") {
-          if (info.power === "off") {
-            setManualSleeping(true);
-          } else if (info.power === "on") {
-            const nowMs = Date.now();
+        const nowMs = Date.now();
+        const scheduleSleeping = scheduleSleepingNow(new Date(nowMs), settingsRef.current);
+        if (info.power === "off") {
+          // 起きているべき時間帯にモニターが消えている = 外部 OFF とみなす
+          if (!scheduleSleeping) setManualSleeping(true);
+          // 就寝帯での OFF は正常なので何もしない
+        } else if (info.power === "on") {
+          // モニターがついているのにアプリが寝る意図なら、外部 ON に追従して起床
+          const intendSleep =
+            manualSleepingRef.current || (scheduleSleeping && awakeUntilRef.current <= nowMs);
+          if (intendSleep) {
             setManualSleeping(false);
             setAwakeUntil(nowMs + settingsRef.current.manualWakeDurationMin * 60_000);
             setNow(nowMs);
           }
         }
-
-        setDisplayPower(info.power);
       } catch (err) {
         console.warn("[display] fetchDisplayStatus failed:", err);
       }
@@ -129,30 +147,22 @@ export function useSleepController(): { sleeping: boolean; now: number } {
 
     function setupSubscription() {
       const sub = subscribeDisplayEvents({
-        onStatus: (status, event) => {
+        onStatus: (status) => {
           setDisplayPower(status.power);
-
           // 外部操作のみスリープ意図へ反映（command/unknown は無視）
-          if (event.status.powerOrigin === "external") {
-            if (status.power === "off") {
-              setManualSleeping(true);
-            } else if (status.power === "on") {
-              const nowMs = Date.now();
-              setManualSleeping(false);
-              setAwakeUntil(nowMs + settingsRef.current.manualWakeDurationMin * 60_000);
-              setNow(nowMs);
-            }
+          if (status.powerOrigin === "external") {
+            applyExternalPower(status.power);
           }
         },
         onReconnect: () => {
           // SSE 再接続時に GET で現在状態を再同期（切断中の物理操作を自己修復）
-          void syncDisplayStatus();
+          void reconcileDisplayStatus();
         },
       });
       cleanup = sub.unsubscribe;
     }
 
-    void syncDisplayStatus().then(() => {
+    void reconcileDisplayStatus().then(() => {
       if (displayEnabledRef.current) {
         setupSubscription();
       }

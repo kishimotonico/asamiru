@@ -53,6 +53,7 @@ describe("createDisplayService", () => {
 
     if (!svc.enabled) throw new Error("expected enabled service");
     svc.simulateExternal("off");
+    await new Promise((r) => setTimeout(r, 10)); // キュー経由の反映を待つ
 
     expect(events.some((e) => e.power === "off" && e.origin === "external")).toBe(true);
     svc.stop();
