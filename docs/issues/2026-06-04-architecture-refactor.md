@@ -36,14 +36,24 @@ import 元の無い `ScheduleCard.tsx` / `scheduleData.ts` / `data.ts` と、ど
 
 ## 残課題・今後の候補
 
-- `DebugOverlay` が1ファイル440行と大きい。テーブル/詳細/フォーマッタの分割余地あり（今回は表示専用で挙動リスクが低いため見送り）。
 - モジュールON/OFF（表示カードの有効化切替）は未実装。必要になった時点で設計する。
 - web 側はフックの結合テスト（React Testing Library）が無い。純粋関数のテストで主要ロジックは押さえたが、フック合成の回帰検知は手薄。
 
-## レビュー
+## ラウンド2: サーバー側ほか追加リファクタ
 
-sleep 再設計の挙動等価性を別エージェント（Sonnet）に旧実装との差分でレビューさせた。重大度「高/中」の等価性破壊はゼロ、「低」4件のみ（いずれも動作バグではなく、コメント明示の推奨やコスト微増）。指摘のうち価値の高い2点（外部OFF時の `now` 更新の意図的差分、`resyncAwake` の二段ゲートの説明）をコメントで明示した。残り2件（logger の per-call localStorage アクセス、`actions` の useMemo 依存）は現状の使用箇所では無害なため見送り。
+オーナーの追加指示（「サーバー側 index.ts が長い」「他にもできるリファクタは全部」「過剰回避は気にしない」「今後の機能追加・デザイン改修に備える」）を受けて実施。
+
+- API `index.ts` の責務分離: ブート・ルーティング・Yahoo API呼び出し＋HTMLパース・キャッシュ・静的配信・ライフサイクルが混在していた1ファイルを、`app.ts`（合成ルート）/ `lineStatus.ts`（Yahoo取得・パース・TTLキャッシュ）/ `railRoutes.ts`（鉄道HTTPルート）/ `staticFiles.ts`（静的配信）/ `errors.ts`（共通errorMessage）に分割。`index.ts` はブート＋serve＋シグナルのみに。`createApp` をテスト可能にし、鉄道ルート＋合成の自動テストを新規追加（api 16→23件）。`departures.ts` / `metrics.ts` の重複 errorMessage も解消。ルート登録順（display→health/debug→rail→404→static）は厳密維持。
+- `packages/shared` をドメイン別（display / rail / debug / trainLines）に分割し index は re-export のみに。import パスは不変。
+- web: Dashboard のデータ取得を `WeatherDataCard` / `TrainsDataCard` に抽出しレイアウト層を分離。発車本数はサーバーで既に displayCount にキャップ済みのため、クライアント側の重複 slice を除去。
+- web: `DebugOverlay`（440行）を format / useDebugMetrics / SummaryTile / ApiStatsTable / EventHistory / container（142行）に分割。
+- web: `SettingsModal`（252行）から天気/電車/路線運行情報セクションを独立コンポーネント化し、既存の Sleep/Display セクションと統一。シェル（62行）に。
+
+### ラウンド2の判断記録
+
+- API リファクタは別エージェント（Sonnet）に旧実装との挙動等価レビューを依頼。7つの重点項目すべて「等価性OK」、低重度2件（`resolveWebDistRoot` の評価タイミング差・dist無し時のreturn）はいずれも運用上の挙動差なしと確認。
+- `apps/api/src/departures.ts`（790行）の分割は**見送り**。京王の駅名・行先コード等の文字列リテラルの参照データが大量にあり、テストが無い状態でファイル間を手で移すとタイプミスで挙動を静かに壊すリスクがある（ビルドは型エラーしか検知しない）。安全側に倒して現状維持とした。将来 departures のテストを整備した上で、参照データの分離を行うのが望ましい。
 
 ## 検証
 
-`pnpm test` 全 green（web 19 / display-control 15 / api 16）。`pnpm build` 全 green。
+`pnpm test` 全 green（web 19 / display-control 15 / api 23）。`pnpm build` 全 green。
