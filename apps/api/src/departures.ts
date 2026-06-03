@@ -1,6 +1,7 @@
 import type { RailDeparturesResponse } from "@asamiru/shared";
 import { recordDebugEvent, withUpstream } from "./metrics.js";
 import { buildScheduleCandidates, selectDiakind } from "./timetable.js";
+import { errorMessage } from "./errors.js";
 
 type TrafficResponse = {
   TS?: TrafficPosition[];
@@ -781,9 +782,3 @@ function destinationLabel(code: string | undefined): string {
   }
 }
 
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return "Unknown error";
-}

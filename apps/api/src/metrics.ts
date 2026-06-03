@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { API_DEBUG_LABELS } from "@asamiru/shared";
 import type { ApiDebugApiStats, ApiDebugEvent, ApiDebugKind, ApiDebugMetrics, ApiDebugTotals } from "@asamiru/shared";
+import { errorMessage } from "./errors.js";
 
 type DebugContext = {
   correlationId: string;
@@ -179,11 +180,4 @@ function emptyTotals(): ApiDebugTotals {
 
 function elapsedMs(startedAt: number): number {
   return Math.round(performance.now() - startedAt);
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return "Unknown error";
 }
