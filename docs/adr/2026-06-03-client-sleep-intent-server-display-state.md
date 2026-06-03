@@ -22,7 +22,7 @@ Web とサーバーで異なる責務の状態を管理する。
   - `manualSleeping`
   - `desiredSleeping`
   - `effectiveSleeping`
-- サーバーの `DisplayService` は物理モニターの状態と DDC コマンド相関を管理する。
+- Node 専用の `packages/display-control` は物理モニターの状態と DDC コマンド相関を管理する。
   - DRM connector status
   - DDC/CI `D6` の観測値
   - desired display power
@@ -30,6 +30,8 @@ Web とサーバーで異なる責務の状態を管理する。
   - 最終コマンド、最終エラー
 
 サーバーはアプリのスリープ状態を計算しない。クライアントはサーバーから通知された外部 ON/OFF を、キー・pointer と同じユーザー入力としてスリープ意図へ反映する。
+
+`apps/api` は `packages/display-control` を HTTP/SSE に公開する薄いアダプターとする。パッケージ分離と実行時オプトアウトは `docs/adr/2026-06-03-optional-display-control-package.md` に記録する。
 
 SSE の通知には状態だけでなく、電源状態の主体と観測のきっかけを含める。
 

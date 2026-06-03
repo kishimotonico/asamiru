@@ -1,8 +1,10 @@
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { isTextInputTarget } from "../lib/dom";
-import { scheduleSleepingNow, sleepSettingsAtom } from "./sleepSettingsAtom";
+import { scheduleAwakeNow, scheduleSleepingNow, sleepSettingsAtom } from "./sleepSettingsAtom";
 import { useFullscreen } from "./useFullscreen";
+import { fetchDisplayStatus, putDesiredPower, subscribeDisplayEvents } from "../data/display";
+import type { DisplayPower } from "@asamiru/shared";
 
 const TICK_INTERVAL_MS = 15_000;
 const INPUT_SUPPRESS_MS = 300;
@@ -10,30 +12,52 @@ const INPUT_SUPPRESS_MS = 300;
 /**
  * スリープ状態を統括する hook。App に1つだけマウントする。
  *
- * 状態は最小: settings(永続) + awakeUntil(操作で延長される起床期限) + suppressInputUntil(復帰直後の抑止)。
- * sleeping = scheduleSleeping(now) && now >= awakeUntil。
- * window の capture-phase リスナで操作を拾い、stale closure を避けるため最新値は ref 経由で読む。
+ * - Web はアプリのスリープ意図（スケジュール・一時起床・手動スリープ）の正。
+ * - モニター電源制御が有効な場合、desiredSleeping の遷移で desired-power を送る。
+ * - 物理 ON/OFF（powerOrigin=external）を入力操作として反映する。
+ *
+ * sleeping = scheduleSleeping(now) && now >= awakeUntil
+ * desiredSleeping = manualSleeping || sleeping
+ * effectiveSleeping = desiredSleeping || (displayEnabled && displayPower === "off")
  */
 export function useSleepController(): { sleeping: boolean; now: number } {
   const settings = useAtomValue(sleepSettingsAtom);
   const { toggle: toggleFullscreen } = useFullscreen();
 
   const [now, setNow] = useState(() => Date.now());
-  // awakeUntil は描画に影響するので state。初期値 0（過去）＝初回ロードがスリープ帯なら即スリープ。
   const [awakeUntil, setAwakeUntil] = useState(0);
+  const [manualSleeping, setManualSleeping] = useState(false);
+  const [displayPower, setDisplayPower] = useState<DisplayPower>("unknown");
+  const [displayEnabled, setDisplayEnabled] = useState(false);
   const suppressInputUntilRef = useRef(0);
 
-  const sleeping = scheduleSleepingNow(new Date(now), settings) && now >= awakeUntil;
+  // スケジュール上スリープすべきか
+  const scheduleSleeping = scheduleSleepingNow(new Date(now), settings);
+  // ユーザー操作で起床中か
+  const awake = now < awakeUntil;
+  // アプリのスリープ意図
+  const desiredSleeping = manualSleeping || (scheduleSleeping && !awake);
+  // モニターが明示的にOFFの場合はスリープ扱い（display 無効時は unknown なので影響しない）
+  const displayUnavailable = displayEnabled && displayPower === "off";
+  const effectiveSleeping = desiredSleeping || displayUnavailable;
 
   // ハンドラから読む最新値は ref に同期
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
-  const sleepingRef = useRef(sleeping);
-  sleepingRef.current = sleeping;
+  const effectiveSleepingRef = useRef(effectiveSleeping);
+  effectiveSleepingRef.current = effectiveSleeping;
   const toggleFullscreenRef = useRef(toggleFullscreen);
   toggleFullscreenRef.current = toggleFullscreen;
   const awakeUntilRef = useRef(awakeUntil);
   awakeUntilRef.current = awakeUntil;
+  const manualSleepingRef = useRef(manualSleeping);
+  manualSleepingRef.current = manualSleeping;
+  const desiredSleepingRef = useRef(desiredSleeping);
+  desiredSleepingRef.current = desiredSleeping;
+  const displayPowerRef = useRef(displayPower);
+  displayPowerRef.current = displayPower;
+  const displayEnabledRef = useRef(displayEnabled);
+  displayEnabledRef.current = displayEnabled;
 
   // 時刻 tick（境界・期限の再評価用）
   useEffect(() => {
@@ -41,7 +65,17 @@ export function useSleepController(): { sleeping: boolean; now: number } {
     return () => window.clearInterval(id);
   }, []);
 
-  // 自動スリープ時間の設定変更を、現在の一時起床にも即反映（スリープ帯で起床中のときのみ寄せる）
+  // scheduleAwakeNow の false→true エッジで manualSleeping を解除
+  useEffect(() => {
+    if (!manualSleeping) return;
+    const wasScheduleAwake = scheduleAwakeNow(new Date(now - TICK_INTERVAL_MS), settings.windows);
+    const isScheduleAwake = scheduleAwakeNow(new Date(now), settings.windows);
+    if (!wasScheduleAwake && isScheduleAwake) {
+      setManualSleeping(false);
+    }
+  }, [now, manualSleeping, settings]);
+
+  // 自動スリープ時間の設定変更を一時起床にも即反映
   useEffect(() => {
     const nowMs = Date.now();
     if (awakeUntilRef.current > nowMs && scheduleSleepingNow(new Date(nowMs), settingsRef.current)) {
@@ -50,9 +84,89 @@ export function useSleepController(): { sleeping: boolean; now: number } {
     }
   }, [settings.manualWakeDurationMin]);
 
+  // desired power 送信（desiredSleeping が変化したとき）
+  useEffect(() => {
+    if (!displayEnabledRef.current) return;
+    const desired = desiredSleeping ? "standby" : "on";
+    const targetPower = desired === "standby" ? "off" : "on";
+    // 観測値と一致するなら送らない（skip-if-matches）
+    if (displayPowerRef.current === targetPower) return;
+    putDesiredPower(desired).catch((err) => {
+      // モニター制御失敗はスリープを失敗させない
+      console.warn("[display] putDesiredPower failed:", err);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [desiredSleeping]);
+
+  // モニター制御連動（マウント時に1度だけ設定）
+  useEffect(() => {
+    let cleanup: (() => void) | null = null;
+
+    async function syncDisplayStatus() {
+      try {
+        const info = await fetchDisplayStatus();
+        if (!info.enabled) return;
+
+        setDisplayEnabled(true);
+
+        // 外部操作（人が操作したモニター状態）だけをスリープ意図へ反映
+        if (info.powerOrigin === "external") {
+          if (info.power === "off") {
+            setManualSleeping(true);
+          } else if (info.power === "on") {
+            const nowMs = Date.now();
+            setManualSleeping(false);
+            setAwakeUntil(nowMs + settingsRef.current.manualWakeDurationMin * 60_000);
+            setNow(nowMs);
+          }
+        }
+
+        setDisplayPower(info.power);
+      } catch (err) {
+        console.warn("[display] fetchDisplayStatus failed:", err);
+      }
+    }
+
+    function setupSubscription() {
+      const sub = subscribeDisplayEvents({
+        onStatus: (status, event) => {
+          setDisplayPower(status.power);
+
+          // 外部操作のみスリープ意図へ反映（command/unknown は無視）
+          if (event.status.powerOrigin === "external") {
+            if (status.power === "off") {
+              setManualSleeping(true);
+            } else if (status.power === "on") {
+              const nowMs = Date.now();
+              setManualSleeping(false);
+              setAwakeUntil(nowMs + settingsRef.current.manualWakeDurationMin * 60_000);
+              setNow(nowMs);
+            }
+          }
+        },
+        onReconnect: () => {
+          // SSE 再接続時に GET で現在状態を再同期（切断中の物理操作を自己修復）
+          void syncDisplayStatus();
+        },
+      });
+      cleanup = sub.unsubscribe;
+    }
+
+    void syncDisplayStatus().then(() => {
+      if (displayEnabledRef.current) {
+        setupSubscription();
+      }
+    });
+
+    return () => {
+      cleanup?.();
+    };
+  // マウント時だけ実行
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // グローバル操作リスナ（マウント時に1度だけ登録）
   useEffect(() => {
-    // awakeUntil を変えるときは now state も同じ時刻に揃える（描画判定 now>=awakeUntil を即時に正しく反映するため）
     const setAwake = (untilMs: number, nowMs: number) => {
       setAwakeUntil(untilMs);
       setNow(nowMs);
@@ -61,13 +175,14 @@ export function useSleepController(): { sleeping: boolean; now: number } {
       setAwake(nowMs + settingsRef.current.manualWakeDurationMin * 60_000, nowMs);
     };
     const wake = (nowMs: number) => {
+      setManualSleeping(false);
       extend(nowMs);
       suppressInputUntilRef.current = nowMs + INPUT_SUPPRESS_MS;
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
       const nowMs = Date.now();
-      if (sleepingRef.current) {
+      if (effectiveSleepingRef.current) {
         wake(nowMs);
         e.preventDefault();
         e.stopPropagation();
@@ -84,7 +199,9 @@ export function useSleepController(): { sleeping: boolean; now: number } {
         return;
       }
       if (e.key === "s") {
-        setAwake(nowMs, nowMs); // 今すぐ寝かせる（延長しない）
+        // 手動スリープ: manualSleeping=true で起床帯でもスリープを維持
+        setManualSleeping(true);
+        setNow(nowMs);
         return;
       }
       if (e.key === "f") {
@@ -97,7 +214,7 @@ export function useSleepController(): { sleeping: boolean; now: number } {
 
     const onPointerDown = (e: PointerEvent) => {
       const nowMs = Date.now();
-      if (sleepingRef.current) {
+      if (effectiveSleepingRef.current) {
         wake(nowMs);
         e.preventDefault();
         e.stopPropagation();
@@ -109,7 +226,7 @@ export function useSleepController(): { sleeping: boolean; now: number } {
 
     const onDoubleClick = (e: MouseEvent) => {
       const nowMs = Date.now();
-      if (sleepingRef.current) return; // 起床直後は pointerdown 側で wake 済み
+      if (effectiveSleepingRef.current) return; // 起床直後は pointerdown 側で wake 済み
       if (nowMs < suppressInputUntilRef.current) return;
       const target = e.target;
       if (
@@ -131,5 +248,5 @@ export function useSleepController(): { sleeping: boolean; now: number } {
     };
   }, []);
 
-  return { sleeping, now };
+  return { sleeping: effectiveSleeping, now };
 }

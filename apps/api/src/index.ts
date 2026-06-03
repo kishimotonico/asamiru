@@ -15,6 +15,7 @@ import {
   runWithDebugContext,
   withUpstream,
 } from "./metrics.js";
+import { createDisplayServiceFromEnv, createDisplayRoutes } from "./displayRoutes.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -24,7 +25,13 @@ const WEB_DIST_ROOT = resolveWebDistRoot();
 
 const lineStatusCache = new Map<string, { value: TrainLineStatus; expiresAt: number }>();
 
+// ─── モニター電源制御サービス ────────────────────────────────────
+const displayService = createDisplayServiceFromEnv();
+
 const app = new Hono();
+
+// display ルートを既存の /api/* より前に登録
+app.route("/", createDisplayRoutes(displayService));
 const LINE_STATUS_API = "rail/line-status";
 const DEPARTURES_API = "rail/departures";
 
@@ -303,7 +310,21 @@ serve(
     fetch: app.fetch,
     port: PORT,
   },
-  (info) => {
+  async (info) => {
     console.log(`asamiru api listening on http://localhost:${info.port}`);
+    await displayService.start();
+    if (displayService.enabled) {
+      console.log(
+        `display control enabled: connector=${process.env.ASAMIRU_DISPLAY_CONNECTOR ?? "HDMI-A-1"} driver=${process.env.ASAMIRU_DISPLAY_DRIVER ?? "ddc-ci"}`,
+      );
+    }
   },
 );
+
+// シグナルハンドラーでサービスを停止
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.once(signal, () => {
+    displayService.stop();
+    process.exit(0);
+  });
+}

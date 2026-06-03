@@ -1,0 +1,28 @@
+{
+  "name": "@asamiru/display-control",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc --noEmit",
+    "check": "tsx --tsconfig tsconfig.scripts.json scripts/check-display-power.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@asamiru/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.4",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.3"
+  }
+}

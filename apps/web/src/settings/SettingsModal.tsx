@@ -8,6 +8,7 @@ import { trainsSettingsAtom, KEIO_STATIONS } from "./trainsSettingsAtom";
 import { ActionButton, SelectInput, SettingField, TextInput } from "./components/FormControls";
 import { LineMultiSelect } from "./components/LineMultiSelect";
 import { SleepSettingsSection } from "./SleepSettingsSection";
+import { DisplayStatusSection } from "./DisplayStatusSection";
 
 type SettingsModalProps = {
   open: boolean;
@@ -203,6 +204,11 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
             <section>
               <SectionTitle>スリープ</SectionTitle>
               <SleepSettingsSection />
+            </section>
+
+            <section>
+              <SectionTitle>モニター</SectionTitle>
+              <DisplayStatusSection />
             </section>
           </div>
         </DialogPanel>

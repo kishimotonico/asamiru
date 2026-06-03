@@ -5,10 +5,11 @@
   "type": "module",
   "packageManager": "pnpm@11.0.6",
   "scripts": {
-    "dev": "pnpm --filter shared build && pnpm --filter api --filter web --parallel dev",
+    "dev": "pnpm --filter shared build && pnpm --filter @asamiru/display-control build && pnpm --filter api --filter web --parallel dev",
     "dev:api": "pnpm --filter api dev",
     "dev:web": "pnpm --filter web dev",
-    "build": "pnpm --filter shared build && pnpm --filter api build && pnpm --filter web build",
+    "build": "pnpm --filter shared build && pnpm --filter @asamiru/display-control build && pnpm --filter api build && pnpm --filter web build",
+    "test": "pnpm --filter @asamiru/display-control --filter api test",
     "start": "pnpm --filter api start",
     "preview": "pnpm --filter web preview"
   },
