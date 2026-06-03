@@ -1,4 +1,4 @@
-import type { DashboardData } from "./types";
+import type { WeatherData } from "./types";
 import { DataUpdateWarning, RetryButton, dataCardStatus } from "./DataCardStatus";
 import { DashboardCard } from "./DashboardCard";
 import { WeatherIcon } from "./WeatherIcon";
@@ -9,7 +9,7 @@ export function WeatherCard({
   refreshing = false,
   className,
 }: {
-  data: DashboardData["weather"];
+  data: WeatherData;
   error?: Error | null;
   refreshing?: boolean;
   className?: string;

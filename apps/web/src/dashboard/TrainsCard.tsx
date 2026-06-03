@@ -1,4 +1,4 @@
-import type { DashboardData } from "./types";
+import type { TrainsData } from "./types";
 import { DataUpdateWarning, RetryButton, dataCardStatus } from "./DataCardStatus";
 import { DashboardCard } from "./DashboardCard";
 import { StatusDot } from "./StatusDot";
@@ -9,7 +9,7 @@ export function TrainsCard({
   refreshing = false,
   className,
 }: {
-  data: DashboardData["trains"];
+  data: TrainsData;
   error?: Error | null;
   refreshing?: boolean;
   className?: string;
@@ -85,7 +85,7 @@ export function TrainsCard({
   );
 }
 
-function LineStatusSection({ lines }: { lines: DashboardData["trains"]["lines"] }) {
+function LineStatusSection({ lines }: { lines: TrainsData["lines"] }) {
   if (lines.length === 0) {
     return <div className="rounded-lg bg-[#f6f5ef] p-4 text-sm text-[#9aa0aa]">運行情報なし</div>;
   }

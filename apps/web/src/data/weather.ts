@@ -1,4 +1,4 @@
-import type { DashboardData, ForecastDay, WeatherIconKind } from "../dashboard/types";
+import type { ForecastDay, WeatherData, WeatherIconKind } from "../dashboard/types";
 
 type OpenMeteoResponse = {
   hourly?: {
@@ -26,7 +26,7 @@ type FetchWeatherOptions = {
   signal?: AbortSignal;
 };
 
-export async function fetchWeather({ lat = 35.6895, lon = 139.6917, locationName = "東京", signal }: FetchWeatherOptions = {}): Promise<DashboardData["weather"]> {
+export async function fetchWeather({ lat = 35.6895, lon = 139.6917, locationName = "東京", signal }: FetchWeatherOptions = {}): Promise<WeatherData> {
   const url = new URL(WEATHER_ENDPOINT);
 
   url.searchParams.set("latitude", String(lat));
@@ -44,7 +44,7 @@ export async function fetchWeather({ lat = 35.6895, lon = 139.6917, locationName
   return normalizeWeather(raw, locationName);
 }
 
-function normalizeWeather(raw: OpenMeteoResponse, locationName: string): DashboardData["weather"] {
+function normalizeWeather(raw: OpenMeteoResponse, locationName: string): WeatherData {
   const hourly = raw.hourly;
   const daily = raw.daily;
 
