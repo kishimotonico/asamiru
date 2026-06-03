@@ -30,15 +30,16 @@ describe("createDisplayService", () => {
     svc.stop();
   });
 
-  it("enabled=true driver=ddc-ci で ddcBus 未指定ならエラーをスロー", () => {
-    expect(() =>
-      createDisplayService({
-        enabled: true,
-        driver: "ddc-ci",
-        connector: "HDMI-A-1",
-        ddcBus: undefined,
-      }),
-    ).toThrow(/ASAMIRU_DDC_BUS/);
+  it("enabled=true driver=ddc-ci で selector を指定して生成できる", () => {
+    const svc = createDisplayService({
+      enabled: true,
+      driver: "ddc-ci",
+      connector: "HDMI-A-1",
+      selector: { kind: "bus", value: "10" },
+    });
+    // start() しなければ ddcutil は呼ばれない（生成のみ確認）
+    expect(svc.enabled).toBe(true);
+    expect(svc.getStatus()).not.toBeNull();
   });
 
   it("enabled=true driver=fake の simulateExternal が subscribe コールバックを呼ぶ", async () => {

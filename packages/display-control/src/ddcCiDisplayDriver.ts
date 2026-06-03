@@ -4,9 +4,12 @@ import { readConnectorStatus } from "./drmConnector.js";
 
 const DEFAULT_TIMEOUT_MS = 4_000;
 
+/** ddcutil の対象指定。bus（--bus、安定）か display（--display、検出順）のいずれか */
+export type DdcSelector = { kind: "bus" | "display"; value: string };
+
 export type DdcCiDriverOptions = {
-  /** ddcutil の --bus 番号。display 番号より安定 */
-  ddcBus: string;
+  /** ddcutil の対象指定 */
+  selector: DdcSelector;
   /** DRM connector 名（例: HDMI-A-1） */
   connector: string;
   /** ddcutil コマンドタイムアウト ms（既定 4000） */
@@ -30,12 +33,14 @@ function execFileResult(
 }
 
 export class DdcCiDisplayDriver implements DisplayDriver {
-  readonly #bus: string;
+  /** ddcutil に渡す対象指定の引数（例: ["--bus", "10"] / ["--display", "1"]）*/
+  readonly #selectorArgs: string[];
   readonly #connector: string;
   readonly #timeoutMs: number;
 
-  constructor({ ddcBus, connector, timeoutMs }: DdcCiDriverOptions) {
-    this.#bus = ddcBus;
+  constructor({ selector, connector, timeoutMs }: DdcCiDriverOptions) {
+    this.#selectorArgs =
+      selector.kind === "bus" ? ["--bus", selector.value] : ["--display", selector.value];
     this.#connector = connector;
     this.#timeoutMs = timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
@@ -52,7 +57,7 @@ export class DdcCiDisplayDriver implements DisplayDriver {
     try {
       const { stdout } = await execFileResult(
         "ddcutil",
-        ["getvcp", "D6", "--bus", this.#bus, "--terse"],
+        ["getvcp", "D6", ...this.#selectorArgs, "--terse"],
         this.#timeoutMs,
       );
       const match = /\bVCP\s+D6\s+SNC\s+x([0-9a-fA-F]{2})\b/.exec(stdout);
@@ -73,18 +78,10 @@ export class DdcCiDisplayDriver implements DisplayDriver {
   }
 
   async setStandby(): Promise<void> {
-    await execFileResult(
-      "ddcutil",
-      ["setvcp", "D6", "05", "--bus", this.#bus],
-      this.#timeoutMs,
-    );
+    await execFileResult("ddcutil", ["setvcp", "D6", "05", ...this.#selectorArgs], this.#timeoutMs);
   }
 
   async setPowerOn(): Promise<void> {
-    await execFileResult(
-      "ddcutil",
-      ["setvcp", "D6", "01", "--bus", this.#bus],
-      this.#timeoutMs,
-    );
+    await execFileResult("ddcutil", ["setvcp", "D6", "01", ...this.#selectorArgs], this.#timeoutMs);
   }
 }

@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { getConnInfo } from "@hono/node-server/conninfo";
 import { createDisplayService } from "@asamiru/display-control";
-import type { CreatedDisplayService } from "@asamiru/display-control";
+import type { CreatedDisplayService, DdcSelector } from "@asamiru/display-control";
 import type { DesiredDisplayPower, DisplayInfoResponse } from "@asamiru/shared";
 
 // ─── loopback チェック ────────────────────────────────────────────
@@ -15,25 +15,50 @@ function isLoopback(addr: string): boolean {
 
 // ─── サービス生成 ─────────────────────────────────────────────────
 
-export function createDisplayServiceFromEnv(): CreatedDisplayService {
-  const enabled = process.env.ASAMIRU_DISPLAY_ENABLED === "true";
+/**
+ * ddcutil の対象指定を環境変数から決める。
+ * - ASAMIRU_DDC_BUS が指定されていれば bus（安定）。
+ * - なければ ASAMIRU_DISPLAY_NUMBER（既定 1）で display 番号。
+ * bus を優先する。値が不正なら例外。
+ */
+export function resolveDdcSelector(env: NodeJS.ProcessEnv): DdcSelector {
+  const bus = env.ASAMIRU_DDC_BUS?.trim();
+  if (bus) {
+    if (!/^\d+$/.test(bus)) {
+      throw new Error(`ASAMIRU_DDC_BUS must be a non-negative integer, got: ${bus}`);
+    }
+    return { kind: "bus", value: bus };
+  }
+
+  const display = env.ASAMIRU_DISPLAY_NUMBER?.trim() ?? "1";
+  if (!/^\d+$/.test(display)) {
+    throw new Error(`ASAMIRU_DISPLAY_NUMBER must be a non-negative integer, got: ${display}`);
+  }
+  return { kind: "display", value: display };
+}
+
+export function createDisplayServiceFromEnv(env: NodeJS.ProcessEnv = process.env): CreatedDisplayService {
+  const enabled = env.ASAMIRU_DISPLAY_ENABLED === "true";
   if (!enabled) {
     return createDisplayService({ enabled: false });
   }
 
-  const driverEnv = process.env.ASAMIRU_DISPLAY_DRIVER ?? "ddc-ci";
+  const driverEnv = env.ASAMIRU_DISPLAY_DRIVER ?? "ddc-ci";
   if (driverEnv !== "ddc-ci" && driverEnv !== "fake") {
     throw new Error(`ASAMIRU_DISPLAY_DRIVER must be 'ddc-ci' or 'fake', got: ${driverEnv}`);
   }
 
-  const connector = process.env.ASAMIRU_DISPLAY_CONNECTOR ?? "HDMI-A-1";
-  const ddcBus = process.env.ASAMIRU_DDC_BUS;
+  const connector = env.ASAMIRU_DISPLAY_CONNECTOR ?? "HDMI-A-1";
+
+  if (driverEnv === "fake") {
+    return createDisplayService({ enabled: true, driver: "fake", connector });
+  }
 
   return createDisplayService({
     enabled: true,
-    driver: driverEnv,
+    driver: "ddc-ci",
     connector,
-    ddcBus,
+    selector: resolveDdcSelector(env),
   });
 }
 

@@ -1,17 +1,13 @@
 import type { DisplayCapabilities, DesiredDisplayPower, DisplayEvent, DisplayStatus, DisplayErrorCode } from "@asamiru/shared";
 import type { DisplayDriver } from "./displayDriver.js";
-import { DdcCiDisplayDriver } from "./ddcCiDisplayDriver.js";
+import { DdcCiDisplayDriver, type DdcSelector } from "./ddcCiDisplayDriver.js";
 import { FakeDisplayDriver } from "./fakeDisplayDriver.js";
 import { DisplayService } from "./displayService.js";
 
 export type DisplayServiceOptions =
   | { enabled: false }
-  | {
-      enabled: true;
-      driver: "ddc-ci" | "fake";
-      connector: string;
-      ddcBus?: string;
-    };
+  | { enabled: true; driver: "fake"; connector: string }
+  | { enabled: true; driver: "ddc-ci"; connector: string; selector: DdcSelector };
 
 /** 機能無効時に返す NullService */
 class NullDisplayService {
@@ -43,10 +39,18 @@ class ActiveDisplayService {
   readonly enabled = true as const;
   readonly #service: DisplayService;
   readonly #fakeDriver: FakeDisplayDriver | null;
+  readonly #selectorLabel: string;
+  readonly #connector: string;
 
-  constructor(service: DisplayService, fakeDriver: FakeDisplayDriver | null) {
+  constructor(
+    service: DisplayService,
+    fakeDriver: FakeDisplayDriver | null,
+    meta: { selectorLabel: string; connector: string },
+  ) {
     this.#service = service;
     this.#fakeDriver = fakeDriver;
+    this.#selectorLabel = meta.selectorLabel;
+    this.#connector = meta.connector;
   }
 
   getStatus(): DisplayStatus {
@@ -58,7 +62,17 @@ class ActiveDisplayService {
   }
 
   async start(): Promise<void> {
-    return this.#service.start();
+    await this.#service.start();
+    // 起動時の初回観測でモニターが応答しなければ警告（暗黙無効化はしない）。
+    // 番号・connector の指定ミスを起動時点で気づけるようにする。
+    const status = this.#service.getStatus();
+    if (status.error || status.connection === "unknown") {
+      const reason = status.error ? `error=${status.error.code}` : `connection=${status.connection}`;
+      console.warn(
+        `[display] WARNING: モニターが応答しません (${this.#selectorLabel}, connector=${this.#connector})。` +
+          ` ddcutil detect で番号を、/sys/class/drm で connector 名を確認してください。${reason}`,
+      );
+    }
   }
 
   stop(): void {
@@ -96,18 +110,18 @@ export function createDisplayService(options: DisplayServiceOptions): CreatedDis
 
   let driver: DisplayDriver;
   let fakeDriver: FakeDisplayDriver | null = null;
+  let selectorLabel: string;
 
   if (options.driver === "fake") {
     fakeDriver = new FakeDisplayDriver("on");
     driver = fakeDriver;
+    selectorLabel = "driver=fake";
   } else {
-    if (!options.ddcBus) {
-      throw new Error("ASAMIRU_DDC_BUS is required when ASAMIRU_DISPLAY_DRIVER=ddc-ci (or default)");
-    }
     driver = new DdcCiDisplayDriver({
-      ddcBus: options.ddcBus,
+      selector: options.selector,
       connector: options.connector,
     });
+    selectorLabel = `${options.selector.kind}=${options.selector.value}`;
   }
 
   const service = new DisplayService(driver, {
@@ -115,5 +129,8 @@ export function createDisplayService(options: DisplayServiceOptions): CreatedDis
     capabilities: DEFAULT_CAPABILITIES,
   });
 
-  return new ActiveDisplayService(service, fakeDriver);
+  return new ActiveDisplayService(service, fakeDriver, {
+    selectorLabel,
+    connector: options.connector,
+  });
 }

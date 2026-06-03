@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createDisplayService } from "@asamiru/display-control";
-import { createDisplayRoutes } from "../displayRoutes.js";
+import { createDisplayRoutes, resolveDdcSelector } from "../displayRoutes.js";
 
 /** getConnInfo が読む env を生成する（c.env.incoming.socket.remoteAddress） */
 function envWithAddr(remoteAddress: string) {
@@ -9,6 +9,35 @@ function envWithAddr(remoteAddress: string) {
 
 const LOOPBACK_ENV = envWithAddr("127.0.0.1");
 const REMOTE_ENV = envWithAddr("192.168.1.100");
+
+describe("resolveDdcSelector - bus/display 番号の解釈", () => {
+  it("ASAMIRU_DDC_BUS があれば bus を使う", () => {
+    expect(resolveDdcSelector({ ASAMIRU_DDC_BUS: "10" })).toEqual({ kind: "bus", value: "10" });
+  });
+
+  it("bus が無く ASAMIRU_DISPLAY_NUMBER があれば display を使う", () => {
+    expect(resolveDdcSelector({ ASAMIRU_DISPLAY_NUMBER: "2" })).toEqual({ kind: "display", value: "2" });
+  });
+
+  it("どちらも無ければ display 1（今までの --display 1 相当）", () => {
+    expect(resolveDdcSelector({})).toEqual({ kind: "display", value: "1" });
+  });
+
+  it("bus を優先する", () => {
+    expect(resolveDdcSelector({ ASAMIRU_DDC_BUS: "10", ASAMIRU_DISPLAY_NUMBER: "2" })).toEqual({
+      kind: "bus",
+      value: "10",
+    });
+  });
+
+  it("不正な bus 値は例外", () => {
+    expect(() => resolveDdcSelector({ ASAMIRU_DDC_BUS: "abc" })).toThrow(/ASAMIRU_DDC_BUS/);
+  });
+
+  it("不正な display 値は例外", () => {
+    expect(() => resolveDdcSelector({ ASAMIRU_DISPLAY_NUMBER: "x" })).toThrow(/ASAMIRU_DISPLAY_NUMBER/);
+  });
+});
 
 describe("displayRoutes - loopback 制限", () => {
   const svc = createDisplayService({ enabled: false });

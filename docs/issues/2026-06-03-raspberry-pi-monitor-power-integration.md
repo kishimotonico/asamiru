@@ -328,9 +328,9 @@ apps/api/
 
 この判断は `docs/adr/2026-06-03-optional-display-control-package.md` に記録する。
 
-`ddcutil --display 1` の display 番号は検出順で決まるため、接続状態の変化やモニター追加で変わり得る。実装では `ddcutil detect` で対象を確認したうえで、安定した I2C bus またはモニター識別子を明示設定する。
+`ddcutil` の対象指定は I2C bus（`--bus`）と display 番号（`--display`）のどちらでも可。display 番号は検出順で決まり、接続状態の変化やモニター追加で変わり得るため、複数モニターや構成変更があるなら `ddcutil detect` で確認した bus を明示するのが安定する。単一モニター固定なら display 番号でも実用上問題ない。
 
-設定例:
+設定例（bus 指定・安定重視）:
 
 ```text
 ASAMIRU_DISPLAY_ENABLED=true
@@ -338,12 +338,32 @@ ASAMIRU_DISPLAY_CONNECTOR=HDMI-A-1
 ASAMIRU_DDC_BUS=10
 ```
 
+設定例（display 番号・従来コマンド相当）:
+
+```text
+ASAMIRU_DISPLAY_ENABLED=true
+ASAMIRU_DISPLAY_CONNECTOR=HDMI-A-1
+ASAMIRU_DISPLAY_NUMBER=1
+```
+
+`ASAMIRU_DDC_BUS` を指定すれば bus、なければ `ASAMIRU_DISPLAY_NUMBER`（既定 1）で display 番号を使う。bus を優先する。
+
+環境変数:
+
+| 変数 | 既定 | 説明 |
+| --- | --- | --- |
+| `ASAMIRU_DISPLAY_ENABLED` | `false` | `true` でモニター制御を有効化 |
+| `ASAMIRU_DISPLAY_DRIVER` | `ddc-ci` | `fake` でハードウェアなしの開発・検証用 |
+| `ASAMIRU_DDC_BUS` | （未指定） | ddcutil `--bus` 番号。安定重視 |
+| `ASAMIRU_DISPLAY_NUMBER` | `1` | ddcutil `--display` 番号（bus 未指定時） |
+| `ASAMIRU_DISPLAY_CONNECTOR` | `HDMI-A-1` | DRM connector 名 |
+
 `ASAMIRU_DISPLAY_ENABLED` の既定値は false とし、明示的に有効化された場合だけ `packages/display-control` の実行時サービスを生成する。DDC/CI が利用不能な場合はエラーを表示し、暗黙に無効化しない。
 
 実行時オプトアウトの挙動:
 
 - 未設定または `false`: `ddcutil`、`udevadm`、DRM sysfs、I2C デバイスへアクセスせず、polling や子プロセスも起動しない。
-- `true`: DDC/CI の利用可否を検証し、モニター制御を有効化する。
+- `true`: DDC/CI の利用可否を検証し、モニター制御を有効化する。起動時の初回観測でモニターが応答しなければ警告ログを出す（bus/display 番号や connector の指定ミスを起動時点で検知できる）。暗黙無効化はしない。
 - 無効時も既存のブラウザ内スリープ、黒画面、Dashboard アンマウント、API リクエスト停止は通常どおり動作する。
 - 同じ API/Web ビルドを Raspberry Pi とモニターなし環境で利用できる。ビルド時フラグは設けない。
 
