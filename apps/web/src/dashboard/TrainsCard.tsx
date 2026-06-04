@@ -68,19 +68,15 @@ export function TrainsCard({
                     </span>
                     <span className="text-lg">{departure.dest}行</span>
                   </div>
-                  <div className="mt-1 flex items-start gap-3">
-                    <div className="font-mono text-5xl font-medium tracking-[-0.02em] text-ink">
-                      {departure.time}
-                    </div>
+                  <div className="mt-1 flex items-baseline gap-2">
                     {delay > 0 && departure.scheduled ? (
-                      <div className="relative pt-1.5">
-                        <span className="font-mono text-2xl leading-none text-ink-subtle line-through">{departure.scheduled}</span>
-                        <span className="absolute bottom-0 left-0 translate-y-1/2 rounded-full bg-danger-soft px-2 py-0.5 text-xs font-semibold text-danger">
-                          +{delay}分
-                        </span>
-                      </div>
+                      <span className="font-mono text-3xl text-ink-subtle line-through">{departure.scheduled}</span>
+                    ) : null}
+                    <span className="font-mono text-5xl font-medium tracking-[-0.02em] text-ink">{departure.time}</span>
+                    {delay > 0 ? (
+                      <span className="rounded-full bg-danger-soft px-2 py-0.5 text-sm font-semibold text-danger">+{delay}分</span>
                     ) : isRealtime ? (
-                      <span className="self-end mb-1 rounded-full bg-surface-muted px-2 py-0.5 text-xs text-ink-subtle">±0</span>
+                      <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs text-ink-subtle">±0</span>
                     ) : null}
                   </div>
                 </div>
