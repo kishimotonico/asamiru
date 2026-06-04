@@ -30,7 +30,7 @@ export function ClockCard({ className, showSeconds = true }: ClockCardProps) {
       </div>
 
       <div className="mt-5 flex flex-wrap items-baseline font-mono leading-none tracking-normal text-ink">
-        <span className="text-7xl font-light sm:text-8xl lg:text-9xl 2xl:text-[12rem]">{hoursMinutes}</span>
+        <span className="text-7xl font-light sm:text-8xl lg:text-9xl 2xl:text-[13rem]">{hoursMinutes}</span>
         {showSeconds ? (
           <span className="ml-3 text-4xl font-light text-ink-muted sm:text-5xl lg:text-6xl 2xl:text-8xl">:{seconds}</span>
         ) : null}

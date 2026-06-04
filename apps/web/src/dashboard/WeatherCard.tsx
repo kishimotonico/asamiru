@@ -64,7 +64,7 @@ export function WeatherCard({
         ))}
       </div>
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:flex-1">
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
         {[
           { ...data.tomorrow, heading: "明日" },
           { ...data.dayAfter, heading: "明後日" },
