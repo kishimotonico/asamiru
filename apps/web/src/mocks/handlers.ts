@@ -3,7 +3,6 @@ import type {
   DisplayInfoResponse,
   LineStatusResponse,
   RailDeparturesResponse,
-  WatchedLine,
 } from "@asamiru/shared";
 
 // ─── 次発情報 ──────────────────────────────────────────────────────────────
@@ -23,63 +22,68 @@ function minutesLater(offset: number): string {
 // React Query が90秒ごとに refetch しても常に「現在時刻から n 分後」になる。
 function buildDepartures(): RailDeparturesResponse["departures"] {
   return {
-    新宿方面: [
-      { time: minutesLater(2), kind: "急行", dest: "新宿", delay: 0, source: "realtime" },
-      { time: minutesLater(7), kind: "各停", dest: "新宿", source: "realtime" },
-      { time: minutesLater(13), kind: "準特急", dest: "新線新宿", source: "schedule" },
+    "トリニティ・シタデル方面": [
+      // きさらぎライナーバッジの特別スタイルを確認できるよう先頭に置く
+      { time: minutesLater(1), kind: "きさらぎライナー", dest: "シタデル", delay: 0, source: "realtime" },
+      { time: minutesLater(6), kind: "準特急", dest: "トリニティ", source: "realtime" },
+      { time: minutesLater(14), kind: "各停", dest: "百鬼夜行学園前", source: "schedule" },
     ],
-    調布・橋本方面: [
-      { time: minutesLater(3), kind: "急行", dest: "橋本", source: "realtime" },
-      { time: minutesLater(9), kind: "各停", dest: "調布", delay: 3, source: "realtime" },
-      { time: minutesLater(15), kind: "準特急", dest: "高尾山口", source: "schedule" },
+    "ゲヘナ・ミレニアム方面": [
+      { time: minutesLater(5), scheduled: minutesLater(1), kind: "急行", dest: "ゲヘナ", delay: 4, source: "realtime" },
+      { time: minutesLater(8), kind: "各停", dest: "ミレニアム", source: "realtime" },
+      { time: minutesLater(17), kind: "準特急", dest: "アビドス", source: "schedule" },
     ],
   };
 }
 
 // ─── 運行情報 ──────────────────────────────────────────────────────────────
 
-type LineStatusRequest = { lines: WatchedLine[] };
-
-/**
- * リクエスト body の lines を基準に応答を構築する（レビュー #5 対応）。
- * 先頭1件だけ warn、残りは ok にしてデモの見栄えを確保する。
- */
-function buildLineStatusResponse(lines: WatchedLine[]): LineStatusResponse {
-  const now = new Date().toISOString();
-  return {
-    lines: lines.map((line, i) =>
-      i === 0
-        ? {
-            name: line.name,
-            status: "遅延",
-            level: "warn",
-            note: "一部列車に最大10分の遅れが出ています（デモデータ）",
-            sourceUrl: line.yahooUrl,
-            checkedAt: now,
-          }
-        : {
-            name: line.name,
-            status: "平常運転",
-            level: "ok",
-            sourceUrl: line.yahooUrl,
-            checkedAt: now,
-          },
-    ),
-    source: "yahoo-transit",
-    fetchedAt: now,
-  };
-}
+const MOCK_LINE_STATUS: LineStatusResponse = {
+  lines: [
+    {
+      name: "きさらぎ高速鉄道",
+      status: "遅延",
+      level: "warn",
+      note: "折り返し運転を実施しています",
+      sourceUrl: "#",
+      checkedAt: "",
+    },
+    {
+      name: "きさらぎ市営地下鉄",
+      status: "平常運転",
+      level: "ok",
+      sourceUrl: "#",
+      checkedAt: "",
+    },
+    {
+      name: "トリニティ連絡鉄道",
+      status: "平常運転",
+      level: "ok",
+      sourceUrl: "#",
+      checkedAt: "",
+    },
+    {
+      name: "ゲヘナ急行電鉄",
+      status: "平常運転",
+      level: "ok",
+      sourceUrl: "#",
+      checkedAt: "",
+    },
+  ],
+  source: "yahoo-transit",
+  fetchedAt: "",
+};
 
 // ─── ハンドラー定義 ────────────────────────────────────────────────────────
 
 export const handlers = [
-  // 次発情報: body の boardingStation / displayCount を station 名に反映
+  // 次発情報: boardingStation は常に "きさらぎ駅"（設定値は無視）、displayCount のみ反映
   http.post("*/api/rail/departures", async ({ request }) => {
     type DepartureRequest = { boardingStation?: string; displayCount?: number };
     const body = (await request.json().catch(() => ({}))) as DepartureRequest;
     const departures = buildDepartures();
     const response: RailDeparturesResponse = {
-      station: body.boardingStation ?? "明大前",
+      station: "きさらぎ駅",
       departures: Object.fromEntries(
         Object.entries(departures).map(([dir, deps]) => [
           dir,
@@ -87,17 +91,28 @@ export const handlers = [
         ]),
       ),
     };
-    // 少し待ってリアルっぽく見せる
     await new Promise((r) => setTimeout(r, 300));
     return HttpResponse.json(response);
   }),
 
-  // 運行情報: body の lines を基準に返す
-  http.post("*/api/rail/line-status", async ({ request }) => {
-    const body = (await request.json().catch(() => ({ lines: [] }))) as LineStatusRequest;
-    const lines: WatchedLine[] = Array.isArray(body.lines) ? body.lines : [];
+  // 運行情報: 架空路線を固定で返す（checkedAt / fetchedAt は現在時刻で上書き）
+  http.post("*/api/rail/line-status", async () => {
+    const now = new Date().toISOString();
+    const response: LineStatusResponse = {
+      ...MOCK_LINE_STATUS,
+      fetchedAt: now,
+      lines: MOCK_LINE_STATUS.lines.map((l) => ({ ...l, checkedAt: now })),
+    };
     await new Promise((r) => setTimeout(r, 200));
-    return HttpResponse.json(buildLineStatusResponse(lines));
+    return HttpResponse.json(response);
+  }),
+
+  // 天気: 実 Open-Meteo API にパススルーし、場所名だけ "キヴォトス" に上書き
+  // fetchWeather は _location フィールドがあれば locationName より優先する
+  http.get("https://api.open-meteo.com/v1/forecast", async ({ request }) => {
+    const response = await fetch(request);
+    const data = (await response.json()) as Record<string, unknown>;
+    return HttpResponse.json({ ...data, _location: "キヴォトス" });
   }),
 
   // モニター連動: enabled:false で connectWithRetry をリトライなし終端させる

@@ -18,7 +18,7 @@ const LINER_BADGE: RailKindBadge = {
   fg: "text-white",
 };
 
-const LINER_KINDS = new Set(["京王ライナー", "Mt.TAKAO号"]);
+const LINER_KINDS = new Set(["京王ライナー", "Mt.TAKAO号", "きさらぎライナー"]);
 
 export function railKindBadge(kind: string): RailKindBadge {
   return LINER_KINDS.has(kind.trim()) ? LINER_BADGE : DEFAULT_BADGE;
