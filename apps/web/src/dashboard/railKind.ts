@@ -29,9 +29,9 @@ const KIND_MAP: Record<string, RailKindBadge> = {
   急行: { bg: "bg-rail-express2", fg: "text-white" },
   区間急行: { bg: "bg-rail-semi-express", fg: "text-white" },
   快速: { bg: "bg-rail-rapid", fg: "text-white" },
-  // 京王ライナーはグラデーション背景（.rail-badge--liner で定義）
+  // 京王ライナー・Mt.TAKAO号はグラデーション背景（.rail-badge--liner で定義）
   京王ライナー: { bg: "rail-badge--liner", fg: "text-white" },
-  "Mt.TAKAO号": { bg: "rail-badge--liner", fg: "text-white" },
+  "Mt.TAKAO号": { bg: "rail-badge--liner", fg: "text-white" }, // 京王ライナーと同じ凡例
 };
 
 /** 表記揺れを正規化する（timetable.ts 由来の種別名が serviceLabel() と異なる場合を吸収） */

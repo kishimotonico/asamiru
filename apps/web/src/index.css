@@ -22,7 +22,7 @@
   --color-success: var(--c-success);
   --shadow-card: var(--c-shadow-card);
 
-  /* 京王線 種別カラー（路線図準拠のブランドカラー・ライト/ダーク共通の固定色） */
+  /* 京王線 種別カラー（NAVITIME時刻表準拠・ライト/ダーク共通の固定色） */
   --color-rail-express: var(--c-rail-express);
   --color-rail-semi-express-limited: var(--c-rail-semi-express-limited);
   --color-rail-express2: var(--c-rail-express2);
@@ -48,14 +48,15 @@
   /* Dashboard の <main> でも上書きされるが、body 直下の portal（モーダル等）でも accent を効かせるため :root にも定義 */
   --accent: #3a6b8a;
 
-  /* 京王線 種別カラー（路線図準拠。スポイト値で上書き予定。TODO: お兄ちゃんがHPからスポイト） */
-  --c-rail-express: #cc0000;             /* 特急 */
-  --c-rail-semi-express-limited: #e87200; /* 準特急（2022年廃止種別） */
-  --c-rail-express2: #009a44;            /* 急行 */
-  --c-rail-semi-express: #0080c0;        /* 区間急行 */
-  --c-rail-rapid: #0050a0;              /* 快速 */
-  --c-rail-liner-from: #a08000;          /* 京王ライナー グラデーション開始色 */
-  --c-rail-liner-to: #1a3c5e;            /* 京王ライナー グラデーション終了色 */
+  /* 京王線 種別カラー（NAVITIME時刻表 https://transfer-train.navitime.biz/keio/ 準拠） */
+  --c-rail-express: #da2d85;              /* 特急 */
+  --c-rail-semi-express-limited: #da2d85; /* 準特急（2022年廃止種別・特急と同色） */
+  --c-rail-express2: #19b88e;             /* 急行 */
+  --c-rail-semi-express: #d8c339;         /* 区間急行 */
+  --c-rail-rapid: #4472c4;               /* 快速 */
+  --c-rail-liner: #0a458e;               /* 京王ライナー */
+  --c-rail-liner-from: #0a458e;           /* Mt.TAKAO号 グラデーション開始色 */
+  --c-rail-liner-to: #89c541;             /* Mt.TAKAO号 グラデーション終了色 */
 
   color-scheme: light;
   font-synthesis: none;
@@ -88,8 +89,9 @@
 }
 
 /* 京王線 種別バッジ専用クラス（グラデーション等、@theme inline で表現できないもの） */
+/* 京王ライナー・Mt.TAKAO号 共通 */
 .rail-badge--liner {
-  background: linear-gradient(135deg, var(--c-rail-liner-from), var(--c-rail-liner-to));
+  background: linear-gradient(135deg, var(--c-rail-liner-from) 50%, var(--c-rail-liner-to) 50%);
 }
 
 * {
