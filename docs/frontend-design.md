@@ -76,6 +76,18 @@
 - 設定モーダル: `settings/SettingsModal.tsx` は headlessui `Tab` で「表示設定 / システム設定」の2タブ。設定セクションは `*SettingsSection.tsx` として切り出し、該当タブへ `Section` で並べる
 - 永続化する設定は jotai `atomWithStorage`（既存の `weatherSettingsAtom` / `sleepSettingsAtom` / `themeAtom` に倣う。キーは `asamiru-*`）。ADR: `docs/adr/2026-05-30-jotai-for-module-settings.md`
 
+## className の組み立て
+
+クラス名の結合には `lib/cn.ts` の `cn(...)` を使う（`clsx` + `tailwind-merge` のラッパー）。
+
+```tsx
+import { cn } from "../lib/cn";
+
+<div className={cn("base-class", condition && "conditional-class", className)} />
+```
+
+テンプレートリテラルでクラスと式を直結すると Tailwind の scanner がクラスを抽出できない（例: `` `base-class${expr}` `` は `base-class` が未生成になる）。`cn` を使えばこの問題が構造的に起きない。外部から渡された `className` で内部デフォルトを上書きする場合も `twMerge` が競合を解決する。
+
 ## レイアウト
 
 - ルートは `Dashboard` の `<main>`（`min-h-screen bg-canvas`）。中央寄せグリッド `max-w-[1800px]`、`2xl` で3カラム構成

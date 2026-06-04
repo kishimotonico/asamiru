@@ -1,7 +1,30 @@
+import { cn } from "../lib/cn";
 import type { TrainsData } from "./types";
 import { DataUpdateWarning, RetryButton, dataCardStatus } from "./DataCardStatus";
 import { DashboardCard } from "./DashboardCard";
 import { StatusDot } from "./StatusDot";
+
+function ArrowUpIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 19V5M5 12l7-7 7 7" />
+    </svg>
+  );
+}
+
+function ArrowDownIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 5v14M5 12l7 7 7-7" />
+    </svg>
+  );
+}
+
+function DirectionArrow({ direction }: { direction: string }) {
+  if (direction.includes("上り")) return <ArrowUpIcon />;
+  if (direction.includes("下り")) return <ArrowDownIcon />;
+  return null;
+}
 
 export function TrainsCard({
   data,
@@ -27,48 +50,38 @@ export function TrainsCard({
         ) : null}
         {departureEntries.map(([direction, departures]) => (
           <div key={direction} className="min-w-0">
-            <div className="mb-2 flex items-center gap-2 border-b border-border pb-3 text-[14px] tracking-[0.14em] text-ink-subtle">
-              <span aria-hidden="true" className="h-4 w-1.5 rounded-sm bg-[var(--accent)]" />
+            <div className="mb-2 flex items-center gap-1.5 border-b border-border pb-3 text-[14px] tracking-[0.14em] text-ink-subtle">
+              <DirectionArrow direction={direction} />
               {direction}
             </div>
             {departures.map((departure, index) => {
               const delay = departure.delay ?? 0;
-              const isSchedule = departure.source === "schedule";
-              const barColor = isSchedule
-                ? "bg-border-strong"
-                : delay > 0
-                  ? "bg-danger"
-                  : "bg-success";
+              const isRealtime = departure.source === "realtime";
               return (
                 <div
                   key={`${departure.time}-${departure.dest}-${index}`}
-                  className={`flex gap-4 py-4 ${index < departures.length - 1 ? "border-b border-border" : ""}`}
+                  className={cn("py-4", index < departures.length - 1 && "border-b border-border")}
                 >
-                  <div className={`mt-1.5 w-1 shrink-0 self-stretch rounded-full ${barColor}`} />
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-baseline gap-3">
-                      <div
-                        className={`font-mono text-4xl font-medium tracking-[-0.02em] ${
-                          isSchedule ? "text-ink-subtle" : delay > 0 ? "text-danger" : "text-ink"
-                        }`}
-                      >
-                        {delay > 0 && departure.scheduled ? (
-                          <span className="mr-1.5 text-2xl font-normal text-ink-subtle line-through">{departure.scheduled}</span>
-                        ) : null}
-                        {departure.time}
-                      </div>
-                      {delay > 0 ? (
-                        <span className="rounded-full bg-danger-soft px-2.5 py-1 text-sm font-semibold text-danger">
-                          +{delay}分
-                        </span>
+                  <div className="flex flex-wrap items-baseline gap-3">
+                    <div className="font-mono text-5xl font-medium tracking-[-0.02em] text-ink">
+                      {delay > 0 && departure.scheduled ? (
+                        <span className="mr-1.5 text-xl font-normal text-ink-subtle line-through">{departure.scheduled}</span>
                       ) : null}
+                      {departure.time}
                     </div>
-                    <div className="mt-1.5 flex items-center gap-2.5 text-lg text-ink-muted">
-                      <span className="rounded bg-surface-muted px-2 py-0.5 text-sm font-semibold tracking-[0.04em]">
-                        {departure.kind}
+                    {delay > 0 ? (
+                      <span className="rounded-full bg-danger-soft px-2.5 py-1 text-sm font-semibold text-danger">
+                        +{delay}分
                       </span>
-                      <span>{departure.dest}行</span>
-                    </div>
+                    ) : isRealtime ? (
+                      <span className="text-xs text-ink-subtle">±0</span>
+                    ) : null}
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-2.5 text-lg text-ink-muted">
+                    <span className="rounded bg-surface-muted px-2 py-0.5 text-sm font-semibold tracking-[0.04em]">
+                      {departure.kind}
+                    </span>
+                    <span>{departure.dest}行</span>
                   </div>
                 </div>
               );
