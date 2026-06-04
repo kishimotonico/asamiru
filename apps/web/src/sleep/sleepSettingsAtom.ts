@@ -83,9 +83,10 @@ export function scheduleSleepingNow(now: Date, settings: SleepSettings): boolean
  * now より後に始まる、最も近いスケジュール起床帯の開始時刻（epoch ms）。
  * 有効な起床帯が1つも無ければ null。最大7日先まで探索する。
  *
- * 日付またぎ窓（例 22:00-06:00）の開始は start 側（夜側）。
- * 起床帯の途中で forceSleep した場合、その窓の開始は過去になるため
- * 「次の窓開始」が返る（今の窓では戻らず次の窓で戻る）。
+ * 日付またぎ窓（例 22:00-06:00）の開始は start 側（夜側）。重複・隣接する窓は
+ * 連続した1つの起床帯として扱い、その途中から始まる窓の start は候補にしない
+ * （直前がスリープ帯である「本当の sleep→awake 遷移」だけを採る）。
+ * 起床帯の途中で forceSleep した場合は、今の連続帯では戻らず次の帯の開始で戻る。
  */
 export function nextScheduleWakeStartAfter(now: Date, windows: SleepWindow[]): number | null {
   const effectiveWindows = windows.filter(isEffectiveWindow);
@@ -111,7 +112,9 @@ export function nextScheduleWakeStartAfter(now: Date, windows: SleepWindow[]): n
       if (!w.days.includes(startDate.getDay())) continue;
 
       const startMs = startDate.getTime();
-      if (startMs > nowMs) {
+      // 直前がスリープ帯である start だけを採用する。重複・隣接窓では連続帯の
+      // 途中から始まる窓の start（直前が既に起床帯）を除外し、本当の sleep→awake 遷移点だけを拾う。
+      if (startMs > nowMs && !scheduleAwakeNow(new Date(startMs - 1), windows)) {
         if (earliest === null || startMs < earliest) {
           earliest = startMs;
         }

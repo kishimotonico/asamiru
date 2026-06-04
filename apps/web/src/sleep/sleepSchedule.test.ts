@@ -125,4 +125,26 @@ describe("nextScheduleWakeStartAfter", () => {
     const result = nextScheduleWakeStartAfter(now, twoWins);
     expect(result).toBe(new Date(2026, 5, 1, 6, 0).getTime());
   });
+
+  it("重複窓は連続起床帯として扱い、帯の途中の start は採らない", () => {
+    // 月曜 06:00-09:00 と 08:00-10:00（重複）。07:00 は連続帯(06:00-10:00)の中。
+    // 途中の 08:00 ではなく、翌週月曜 06:00 を返す。
+    const overlapping: SleepWindow[] = [
+      { id: "a", days: [1], start: "06:00", end: "09:00" },
+      { id: "b", days: [1], start: "08:00", end: "10:00" },
+    ];
+    const result = nextScheduleWakeStartAfter(MON(7, 0), overlapping);
+    expect(result).toBe(new Date(2026, 5, 8, 6, 0).getTime()); // 翌週月曜 06:00
+  });
+
+  it("隣接窓（接する）も連続帯として扱い、境界の start は採らない", () => {
+    // 月曜 06:00-08:00 と 08:00-10:00（接する）。07:00 は連続帯(06:00-10:00)の中。
+    // 境界の 08:00 ではなく、翌週月曜 06:00 を返す。
+    const adjacent: SleepWindow[] = [
+      { id: "a", days: [1], start: "06:00", end: "08:00" },
+      { id: "b", days: [1], start: "08:00", end: "10:00" },
+    ];
+    const result = nextScheduleWakeStartAfter(MON(7, 0), adjacent);
+    expect(result).toBe(new Date(2026, 5, 8, 6, 0).getTime()); // 翌週月曜 06:00
+  });
 });
