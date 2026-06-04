@@ -81,7 +81,7 @@ body {
   background: var(--c-canvas);
 }
 
-/* 背景クリックでカーソルを隠す（useCursorToggle） */
+/* 無操作時にカーソルを隠す（useIdleCursor） */
 .cursor-none,
 .cursor-none * {
   cursor: none !important;

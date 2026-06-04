@@ -1,5 +1,5 @@
 import { ControlOverlay } from "./controls/ControlOverlay";
-import { useCursorToggle } from "./controls/useCursorToggle";
+import { useIdleCursor } from "./controls/useIdleCursor";
 import { Dashboard } from "./dashboard/Dashboard";
 import { DebugOverlay } from "./debug/DebugOverlay";
 import { SleepScreen } from "./sleep/SleepScreen";
@@ -9,7 +9,7 @@ import { useApplyTheme } from "./theme/useApplyTheme";
 export default function App() {
   const { sleeping, now, sleepNow } = useSleepController();
   const effectiveTheme = useApplyTheme();
-  useCursorToggle(!sleeping);
+  useIdleCursor(!sleeping);
 
   return (
     <>
