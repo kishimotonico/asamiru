@@ -23,6 +23,7 @@ export function ControlOverlay({ effective, onSleepClick }: ControlOverlayProps)
   const visibleRef = useRef(false);
   const lastActivityRef = useRef(0);
   const timerRef = useRef<number>(0);
+  const onActivityRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     const checkHide = () => {
@@ -38,13 +39,14 @@ export function ControlOverlay({ effective, onSleepClick }: ControlOverlayProps)
     const onActivity = () => {
       lastActivityRef.current = Date.now();
       if (!visibleRef.current) {
-        // 非表示→表示の遷移時のみ state 更新とタイマー起動
         visibleRef.current = true;
         setVisible(true);
         timerRef.current = window.setTimeout(checkHide, HIDE_DELAY_MS);
       }
-      // 表示中は lastActivityRef の更新だけ。タイマーは checkHide 内で残時間を確認する
     };
+
+    // onActivity を外から参照できるよう ref に保持（onFocus ハンドラで使用）
+    onActivityRef.current = onActivity;
 
     window.addEventListener("pointermove", onActivity, { passive: true });
     window.addEventListener("pointerdown", onActivity, { passive: true });
@@ -58,9 +60,11 @@ export function ControlOverlay({ effective, onSleepClick }: ControlOverlayProps)
   return (
     <>
       <motion.div
+        onFocus={() => onActivityRef.current()}
+        aria-hidden={!visible}
         animate={{ opacity: visible ? 1 : 0, y: visible ? 0 : -8 }}
         transition={{ duration: 0.2, ease: "easeOut" }}
-        className="fixed right-3 top-3 z-50 flex items-center gap-1 sm:right-5 sm:top-5"
+        className={`fixed right-3 top-3 z-50 flex items-center gap-1 sm:right-5 sm:top-5${!visible ? " pointer-events-none" : ""}`}
       >
         <ThemeToggle effective={effective} />
         <OverlayButton onClick={toggleFullscreen} ariaLabel={isFullscreen ? "フルスクリーン解除" : "フルスクリーン"}>

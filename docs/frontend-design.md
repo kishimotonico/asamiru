@@ -47,7 +47,8 @@
 アプリ全体に対する操作（設定・スリープ・テーマ）は、特定のカード内ではなく画面右上の `controls/ControlOverlay.tsx` に集約する。新しいグローバル操作を足すときもここへ。
 
 - `position: fixed` 右上、`z-50`（モーダルは `z-[10000]` でその上）
-- 通常は `opacity-35` でほぼ目立たず、`hover` / `focus-within` で `opacity-100`
+- ポインター操作中のみ表示（`pointermove` / `pointerdown` で出現、2秒無操作でフェードアウト）。キーボードフォーカス時も再表示する
+- 非表示中は `aria-hidden` + `pointer-events-none` で操作・読み上げ対象から除外する
 - ボタンは `OverlayButton`（9×9・角丸・`text-ink-subtle` → hover で `text-ink` + `bg-surface-muted`）に揃える
 - 設定モーダルの開閉状態はオーバーレイが所有する
 
