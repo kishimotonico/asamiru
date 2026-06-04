@@ -20,14 +20,32 @@ export function ControlOverlay({ effective, onSleepClick }: ControlOverlayProps)
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { isFullscreen, toggle: toggleFullscreen } = useFullscreen();
   const [visible, setVisible] = useState(false);
+  const visibleRef = useRef(false);
+  const lastActivityRef = useRef(0);
   const timerRef = useRef<number>(0);
 
   useEffect(() => {
-    const onActivity = () => {
-      setVisible(true);
-      window.clearTimeout(timerRef.current);
-      timerRef.current = window.setTimeout(() => setVisible(false), HIDE_DELAY_MS);
+    const checkHide = () => {
+      const remaining = HIDE_DELAY_MS - (Date.now() - lastActivityRef.current);
+      if (remaining > 0) {
+        timerRef.current = window.setTimeout(checkHide, remaining);
+      } else {
+        visibleRef.current = false;
+        setVisible(false);
+      }
     };
+
+    const onActivity = () => {
+      lastActivityRef.current = Date.now();
+      if (!visibleRef.current) {
+        // 非表示→表示の遷移時のみ state 更新とタイマー起動
+        visibleRef.current = true;
+        setVisible(true);
+        timerRef.current = window.setTimeout(checkHide, HIDE_DELAY_MS);
+      }
+      // 表示中は lastActivityRef の更新だけ。タイマーは checkHide 内で残時間を確認する
+    };
+
     window.addEventListener("pointermove", onActivity, { passive: true });
     window.addEventListener("pointerdown", onActivity, { passive: true });
     return () => {
