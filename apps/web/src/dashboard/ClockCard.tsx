@@ -24,7 +24,10 @@ export function ClockCard({ className, showSeconds = true }: ClockCardProps) {
   const seconds = String(now.getSeconds()).padStart(2, "0");
 
   return (
-    <DashboardCard className={`justify-between lg:self-start 2xl:self-stretch 2xl:min-h-[28rem]${className ? ` ${className}` : ""}`}>
+    <DashboardCard
+      className={`justify-between lg:self-start 2xl:self-stretch${className ? ` ${className}` : ""}`}
+      style={{ minHeight: "28rem" }}
+    >
       <div className="text-2xl font-medium tracking-normal text-ink-muted sm:text-3xl lg:text-4xl 2xl:text-5xl">
         {dateText}
       </div>

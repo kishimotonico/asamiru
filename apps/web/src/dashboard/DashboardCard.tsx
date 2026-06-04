@@ -1,17 +1,18 @@
-import type { PropsWithChildren, ReactNode } from "react";
+import type { CSSProperties, PropsWithChildren, ReactNode } from "react";
 
 type DashboardCardProps = PropsWithChildren<{
   className?: string;
+  style?: CSSProperties;
   label?: string;
   kicker?: string;
   right?: ReactNode;
 }>;
 
-export function DashboardCard({ children, className = "", label, kicker, right }: DashboardCardProps) {
+export function DashboardCard({ children, className = "", style, label, kicker, right }: DashboardCardProps) {
   const hasHeader = label || kicker || right;
 
   return (
-    <section className={`flex min-h-0 min-w-0 flex-col rounded-lg bg-surface p-5 shadow-card sm:p-7 lg:p-8 ${className}`}>
+    <section className={`flex min-h-0 min-w-0 flex-col rounded-lg bg-surface p-5 shadow-card sm:p-7 lg:p-8 ${className}`} style={style}>
       {hasHeader ? (
         <header className="mb-5 flex items-baseline justify-between gap-4">
           <div className="flex min-w-0 items-baseline gap-3">
