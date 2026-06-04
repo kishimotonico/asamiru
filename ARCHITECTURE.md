@@ -39,15 +39,16 @@ packages/
 
 責務を3つのフックに分離し、`useSleepController` はそれらを合成するだけの薄い層に保つ。
 
-- `useSleepIntent` … アプリの「スリープ意図」を `useReducer` の state machine で持つ。tick・スケジュール境界エッジ・設定追従を内包し、純粋関数 `sleepIntentReducer` / `selectDesiredSleeping` として算出する。
-- `useDisplaySync` … 物理モニター連動。desired power の送信（skip-if-matches）、SSE 購読、外部 ON/OFF のスリープ意図への橋渡しを担う。アプリの意図そのものは持たない。
+- `useSleepIntent` … アプリの「スリープ意図」を判別共用体 `SleepIntent`（`schedule` / `tempAwake` / `forcedSleep`）の state machine で持つ。tick・設定追従を内包し、純粋関数 `sleepIntentReducer` / `selectDesiredSleeping` として算出する。`forcedSleep` は `releaseAt`（次の起床帯開始）で自動解除し、tick 取りこぼしに依存しない。
+- `useDisplaySync` … 物理モニター連動。初期化はバックオフ付きリトライ（`connectWithRetry`）で行い起動順序に強くする。desired power の送信（skip-if-matches）、SSE 購読、外部 ON/OFF のスリープ意図への橋渡しを担う。アプリの意図そのものは持たない。
 - `useGlobalInput` … キーボード・ポインタ・ダブルクリックを window の capture リスナで1か所に集約する。
 
 意図と物理状態を二重管理しない設計（意図はクライアント、物理状態はサーバー）の根拠は [ADR: client sleep intent / server display state](docs/adr/2026-06-03-client-sleep-intent-server-display-state.md) を参照。状態モデル・遷移図・操作仕様・課題と改善提案は [スリープ / ディスプレイ連動 仕様](docs/sleep-display-spec.md) にまとめる。
 
 ```
-effectiveSleeping = desiredSleeping || (モニター有効 && 物理OFF)
-desiredSleeping    = manualSleeping || (スケジュール上スリープ帯 && 一時起床していない)
+showSleepScreen = desiredSleeping || (モニター有効 && 物理OFF)   # 受動的な表示ゲート
+desiredSleeping = mode で決まる:
+  forcedSleep → releaseAt 未到達なら true / tempAwake → until 未到達なら false / schedule → スリープ帯なら true
 ```
 
 window へ一度だけ登録するリスナや、最新の意図を読む必要がある箇所では「最新値を ref に同期」するパターンを各フック内に閉じ込め、合成層には漏らさない。
