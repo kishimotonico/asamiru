@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
+import { cn } from "../lib/cn";
 import { SettingsModal } from "../settings/SettingsModal";
 import { ThemeToggle } from "../theme/ThemeToggle";
 import type { EffectiveTheme } from "../theme/themeAtom";
@@ -64,7 +65,7 @@ export function ControlOverlay({ effective, onSleepClick }: ControlOverlayProps)
         aria-hidden={!visible}
         animate={{ opacity: visible ? 1 : 0, y: visible ? 0 : -8 }}
         transition={{ duration: 0.2, ease: "easeOut" }}
-        className={`fixed right-3 top-3 z-50 flex items-center gap-1 sm:right-5 sm:top-5${!visible ? " pointer-events-none" : ""}`}
+        className={cn("fixed right-3 top-3 z-50 flex items-center gap-1 sm:right-5 sm:top-5", !visible && "pointer-events-none")}
       >
         <ThemeToggle effective={effective} />
         <OverlayButton onClick={toggleFullscreen} ariaLabel={isFullscreen ? "フルスクリーン解除" : "フルスクリーン"}>

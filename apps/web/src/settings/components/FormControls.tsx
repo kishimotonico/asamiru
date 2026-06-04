@@ -1,5 +1,6 @@
 import { Button as HeadlessButton, Description, Field, Input, Label, Select } from "@headlessui/react";
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
+import { cn } from "../../lib/cn";
 
 const controlClassName =
   "rounded-md border border-border-strong bg-surface px-3 py-2 text-sm text-ink outline-none transition focus:border-[--accent] focus:ring-2 focus:ring-[--accent]/15 disabled:bg-surface-muted disabled:text-ink-subtle";
@@ -37,16 +38,16 @@ type TextInputProps = InputHTMLAttributes<HTMLInputElement> & {
   invalid?: boolean;
 };
 
-export function TextInput({ className = "", ...props }: TextInputProps) {
-  return <Input {...props} className={`${controlClassName} ${className}`} />;
+export function TextInput({ className, ...props }: TextInputProps) {
+  return <Input {...props} className={cn(controlClassName, className)} />;
 }
 
 type SelectInputProps = SelectHTMLAttributes<HTMLSelectElement> & {
   invalid?: boolean;
 };
 
-export function SelectInput({ className = "", ...props }: SelectInputProps) {
-  return <Select {...props} className={`${controlClassName} ${className}`} />;
+export function SelectInput({ className, ...props }: SelectInputProps) {
+  return <Select {...props} className={cn(controlClassName, className)} />;
 }
 
 type ActionButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -60,12 +61,16 @@ const buttonClassName: Record<NonNullable<ActionButtonProps["variant"]>, string>
   danger: "text-danger-strong hover:bg-danger-soft disabled:opacity-40",
 };
 
-export function ActionButton({ variant = "secondary", className = "", type = "button", ...props }: ActionButtonProps) {
+export function ActionButton({ variant = "secondary", className, type = "button", ...props }: ActionButtonProps) {
   return (
     <HeadlessButton
       {...props}
       type={type}
-      className={`inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium outline-none transition focus:ring-2 focus:ring-[--accent]/20 ${buttonClassName[variant]} ${className}`}
+      className={cn(
+        "inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium outline-none transition focus:ring-2 focus:ring-[--accent]/20",
+        buttonClassName[variant],
+        className,
+      )}
     />
   );
 }

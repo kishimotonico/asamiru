@@ -1,5 +1,6 @@
 import { useSetAtom } from "jotai";
 import { AnimatePresence, motion } from "motion/react";
+import { cn } from "../lib/cn";
 import type { EffectiveTheme } from "./themeAtom";
 import { themeAtom } from "./themeAtom";
 
@@ -17,7 +18,7 @@ export function ThemeToggle({ effective, className = "" }: ThemeToggleProps) {
     <button
       type="button"
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      className={`relative flex h-9 w-9 items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-surface-muted hover:text-ink ${className}`}
+      className={cn("relative flex h-9 w-9 items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-surface-muted hover:text-ink", className)}
       aria-label={isDark ? "ライトモードに切替" : "ダークモードに切替"}
     >
       <AnimatePresence mode="wait" initial={false}>

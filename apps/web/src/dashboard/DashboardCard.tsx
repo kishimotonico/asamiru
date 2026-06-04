@@ -1,4 +1,5 @@
 import type { PropsWithChildren, ReactNode } from "react";
+import { cn } from "../lib/cn";
 
 type DashboardCardProps = PropsWithChildren<{
   className?: string;
@@ -11,7 +12,7 @@ export function DashboardCard({ children, className = "", label, kicker, right }
   const hasHeader = label || kicker || right;
 
   return (
-    <section className={`flex min-h-0 min-w-0 flex-col rounded-lg bg-surface p-5 shadow-card sm:p-7 lg:p-8 ${className}`}>
+    <section className={cn("flex min-h-0 min-w-0 flex-col rounded-lg bg-surface p-5 shadow-card sm:p-7 lg:p-8", className)}>
       {hasHeader ? (
         <header className="mb-5 flex items-baseline justify-between gap-4">
           <div className="flex min-w-0 items-baseline gap-3">
