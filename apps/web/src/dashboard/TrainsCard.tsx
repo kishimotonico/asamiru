@@ -27,8 +27,8 @@ export function TrainsCard({
         ) : null}
         {departureEntries.map(([direction, departures]) => (
           <div key={direction} className="min-w-0">
-            <div className="mb-2 flex items-center gap-2 border-b border-border pb-2.5 text-[13px] tracking-[0.14em] text-ink-subtle">
-              <span aria-hidden="true" className="h-3.5 w-1 rounded-sm bg-[var(--accent)]" />
+            <div className="mb-2 flex items-center gap-2 border-b border-border pb-3 text-[14px] tracking-[0.14em] text-ink-subtle">
+              <span aria-hidden="true" className="h-4 w-1.5 rounded-sm bg-[var(--accent)]" />
               {direction}
             </div>
             {departures.map((departure, index) => {
@@ -42,29 +42,29 @@ export function TrainsCard({
               return (
                 <div
                   key={`${departure.time}-${departure.dest}-${index}`}
-                  className={`flex gap-3 ${index < departures.length - 1 ? "border-b border-border py-3" : "py-3"}`}
+                  className={`flex gap-4 py-4 ${index < departures.length - 1 ? "border-b border-border" : ""}`}
                 >
-                  <div className={`mt-1 w-0.5 shrink-0 self-stretch rounded-full ${barColor}`} />
+                  <div className={`mt-1.5 w-1 shrink-0 self-stretch rounded-full ${barColor}`} />
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-baseline gap-2.5">
+                    <div className="flex flex-wrap items-baseline gap-3">
                       <div
-                        className={`font-mono text-3xl font-medium tracking-[-0.02em] ${
+                        className={`font-mono text-4xl font-medium tracking-[-0.02em] ${
                           isSchedule ? "text-ink-subtle" : delay > 0 ? "text-danger" : "text-ink"
                         }`}
                       >
                         {delay > 0 && departure.scheduled ? (
-                          <span className="mr-1 text-xl font-normal text-ink-subtle line-through">{departure.scheduled}</span>
+                          <span className="mr-1.5 text-2xl font-normal text-ink-subtle line-through">{departure.scheduled}</span>
                         ) : null}
                         {departure.time}
                       </div>
                       {delay > 0 ? (
-                        <span className="rounded-full bg-danger-soft px-2 py-1 text-xs font-semibold text-danger">
+                        <span className="rounded-full bg-danger-soft px-2.5 py-1 text-sm font-semibold text-danger">
                           +{delay}分
                         </span>
                       ) : null}
                     </div>
-                    <div className="mt-1 flex items-center gap-2 text-base text-ink-muted">
-                      <span className="rounded bg-surface-muted px-2 py-0.5 text-xs font-semibold tracking-[0.04em]">
+                    <div className="mt-1.5 flex items-center gap-2.5 text-lg text-ink-muted">
+                      <span className="rounded bg-surface-muted px-2 py-0.5 text-sm font-semibold tracking-[0.04em]">
                         {departure.kind}
                       </span>
                       <span>{departure.dest}行</span>

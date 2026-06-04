@@ -25,16 +25,14 @@ export function ClockCard({ className, showSeconds = true }: ClockCardProps) {
 
   return (
     <DashboardCard className={`justify-between lg:self-start 2xl:self-stretch${className ? ` ${className}` : ""}`}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="shrink-0 text-2xl font-medium tracking-normal text-ink-muted sm:text-3xl lg:text-4xl">
-          {dateText}
-        </div>
+      <div className="text-2xl font-medium tracking-normal text-ink-muted sm:text-3xl lg:text-4xl 2xl:text-5xl">
+        {dateText}
       </div>
 
-      <div className="mt-5 flex items-baseline font-mono leading-none tracking-normal text-ink">
-        <span className="text-7xl font-light sm:text-8xl lg:text-9xl 2xl:text-[10.5rem]">{hoursMinutes}</span>
+      <div className="mt-5 flex flex-wrap items-baseline font-mono leading-none tracking-normal text-ink">
+        <span className="text-7xl font-light sm:text-8xl lg:text-9xl 2xl:text-[14rem]">{hoursMinutes}</span>
         {showSeconds ? (
-          <span className="ml-3 text-4xl font-light text-ink-muted sm:text-5xl lg:text-6xl 2xl:text-7xl">:{seconds}</span>
+          <span className="ml-3 text-4xl font-light text-ink-muted sm:text-5xl lg:text-6xl 2xl:text-8xl">:{seconds}</span>
         ) : null}
       </div>
     </DashboardCard>

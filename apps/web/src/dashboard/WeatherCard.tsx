@@ -64,31 +64,31 @@ export function WeatherCard({
         ))}
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:flex-1">
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:flex-1">
         {[
           { ...data.tomorrow, heading: "明日" },
           { ...data.dayAfter, heading: "明後日" },
         ].map((day) => (
-          <div key={day.heading} className="flex items-center gap-3 rounded-lg bg-surface-muted p-4">
-            <WeatherIcon kind={day.icon} size={42} className="shrink-0 text-ink-muted" />
+          <div key={day.heading} className="flex items-center gap-2.5 rounded-lg bg-surface-muted px-3 py-2.5">
+            <WeatherIcon kind={day.icon} size={32} className="shrink-0 text-ink-muted" />
             <div className="min-w-0">
-              <div className="truncate text-sm text-ink-subtle">
+              <div className="truncate text-xs text-ink-subtle">
                 {day.heading} · {day.weekday}
               </div>
-              <div className="mt-1 flex items-baseline gap-1.5">
-                <span className="text-2xl font-medium">
+              <div className="flex items-baseline gap-1">
+                <span className="text-lg font-medium">
                   {day.high}
-                  <span className="ml-0.5 text-base text-ink-subtle">℃</span>
+                  <span className="ml-0.5 text-xs text-ink-subtle">℃</span>
                 </span>
-                <span className="text-base text-ink-subtle">
+                <span className="text-sm text-ink-subtle">
                   / {day.low}
-                  <span className="text-sm">℃</span>
+                  <span className="text-xs">℃</span>
                 </span>
-                <span className={`ml-1 text-[13px] ${day.pop > 20 ? "text-[var(--accent)]" : "text-ink-subtle"}`}>
+                <span className={`ml-0.5 text-[12px] ${day.pop > 20 ? "text-[var(--accent)]" : "text-ink-subtle"}`}>
                   {day.pop}%
                 </span>
               </div>
-              <div className="mt-0.5 text-[13px] text-ink-muted">{day.label}</div>
+              <div className="text-[12px] text-ink-muted">{day.label}</div>
             </div>
           </div>
         ))}
