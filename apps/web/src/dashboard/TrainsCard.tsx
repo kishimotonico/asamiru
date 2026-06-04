@@ -60,28 +60,28 @@ export function TrainsCard({
               return (
                 <div
                   key={`${departure.time}-${departure.dest}-${index}`}
-                  className={cn("py-4", index < departures.length - 1 && "border-b border-border")}
+                  className={cn("py-5", index < departures.length - 1 && "border-b border-border")}
                 >
-                  <div className="flex flex-wrap items-baseline gap-3">
-                    <div className="font-mono text-5xl font-medium tracking-[-0.02em] text-ink">
-                      {delay > 0 && departure.scheduled ? (
-                        <span className="mr-1.5 text-xl font-normal text-ink-subtle line-through">{departure.scheduled}</span>
-                      ) : null}
-                      {departure.time}
-                    </div>
-                    {delay > 0 ? (
-                      <span className="rounded-full bg-danger-soft px-2.5 py-1 text-sm font-semibold text-danger">
-                        +{delay}分
-                      </span>
-                    ) : isRealtime ? (
-                      <span className="text-xs text-ink-subtle">±0</span>
-                    ) : null}
-                  </div>
-                  <div className="mt-1.5 flex items-center gap-2.5 text-lg text-ink-muted">
+                  <div className="flex items-center gap-2.5 text-ink-muted">
                     <span className="rounded bg-surface-muted px-2 py-0.5 text-sm font-semibold tracking-[0.04em]">
                       {departure.kind}
                     </span>
-                    <span>{departure.dest}行</span>
+                    <span className="text-lg">{departure.dest}行</span>
+                  </div>
+                  <div className="mt-1 flex items-start gap-3">
+                    <div className="font-mono text-5xl font-medium tracking-[-0.02em] text-ink">
+                      {departure.time}
+                    </div>
+                    {delay > 0 && departure.scheduled ? (
+                      <div className="relative pt-1.5">
+                        <span className="font-mono text-2xl leading-none text-ink-subtle line-through">{departure.scheduled}</span>
+                        <span className="absolute bottom-0 left-0 translate-y-1/2 rounded-full bg-danger-soft px-2 py-0.5 text-xs font-semibold text-danger">
+                          +{delay}分
+                        </span>
+                      </div>
+                    ) : isRealtime ? (
+                      <span className="self-end mb-1 rounded-full bg-surface-muted px-2 py-0.5 text-xs text-ink-subtle">±0</span>
+                    ) : null}
                   </div>
                 </div>
               );
