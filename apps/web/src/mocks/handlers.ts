@@ -1,4 +1,4 @@
-import { http, HttpResponse } from "msw";
+import { http, HttpResponse, bypass } from "msw";
 import type {
   DisplayInfoResponse,
   LineStatusResponse,
@@ -110,7 +110,7 @@ export const handlers = [
   // 天気: 実 Open-Meteo API にパススルーし、場所名だけ "キヴォトス" に上書き
   // fetchWeather は _location フィールドがあれば locationName より優先する
   http.get("https://api.open-meteo.com/v1/forecast", async ({ request }) => {
-    const response = await fetch(request);
+    const response = await fetch(bypass(request));
     const data = (await response.json()) as Record<string, unknown>;
     return HttpResponse.json({ ...data, _location: "キヴォトス" });
   }),
