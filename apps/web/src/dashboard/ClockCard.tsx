@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { cn } from "../lib/cn";
 import { DashboardCard } from "./DashboardCard";
 
 type ClockCardProps = {
@@ -24,7 +25,7 @@ export function ClockCard({ className, showSeconds = true }: ClockCardProps) {
   const seconds = String(now.getSeconds()).padStart(2, "0");
 
   return (
-    <DashboardCard className={`justify-center lg:self-start 2xl:self-stretch 2xl:min-h-clock${className ? ` ${className}` : ""}`}>
+    <DashboardCard className={cn("justify-center lg:self-start 2xl:self-stretch 2xl:min-h-[28rem]", className)}>
       <div className="text-2xl font-medium tracking-normal text-ink-muted sm:text-3xl lg:text-4xl 2xl:text-5xl">
         {dateText}
       </div>

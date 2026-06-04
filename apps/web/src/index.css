@@ -86,12 +86,3 @@ body {
 .cursor-none * {
   cursor: none !important;
 }
-
-/* 時計カードの最小高さ。@utility はレスポンシブ variant で生成されないため @layer utilities で直接定義 */
-@layer utilities {
-  @media (width >= 96rem) {
-    .\32 xl\:min-h-clock {
-      min-height: 28rem;
-    }
-  }
-}
