@@ -1,85 +1,79 @@
-# Tailwind v4 @utility のレスポンシブ variant 生成問題
+# Tailwind クラスがテンプレートリテラル直結で生成されない問題と cn ユーティリティ導入
 
-**日付**: 2026-06-04  
-**影響ファイル**: `apps/web/src/index.css`, `apps/web/src/dashboard/ClockCard.tsx`  
-**解決コミット**: `00aab66`
+日付: 2026-06-04  
+関連ファイル: `apps/web/src/dashboard/ClockCard.tsx`, `apps/web/src/controls/ControlOverlay.tsx`, `apps/web/src/lib/cn.ts` ほか  
+コミット: `00aab66`（誤った回避策）→ 本対応で訂正
 
-## 背景
+## 概要
 
-時計カードを 2xl ブレークポイント（≥ 1536px）で最小高さ 28rem に固定したかった。`DashboardCard` のベースに `min-h-0` があり、Tailwind の responsive utility で上書きする想定。
+時計カードを 2xl（≥96rem）で最小高さ 28rem に固定しようとしたところ `2xl:min-h-[28rem]` の CSS が生成されず、当初これを「Tailwind v4.3.0 の `@utility` がレスポンシブ variant で生成されないバグ」と誤って結論づけた（`@layer utilities` で生セレクターを直書きする回避策を採用）。
 
-## 試みた方法と結果
+Codex のレビューで原因分析が誤りと判明。真因は Tailwind のバグではなく、テンプレートリテラルで固定クラスと式を直結すると Tailwind の scanner がクラスを抽出できないことだった。
 
-### 1. `2xl:min-h-[28rem]`（arbitrary value）
+## 真因
 
-```tsx
-<DashboardCard className="... 2xl:min-h-[28rem]">
-```
-
-**結果**: CSS 生成されない。`min-height: 0px` のまま。
-
-既存の `2xl:min-h-[calc(100vh-7rem)]` は生成されており、arbitrary value が必ず通るわけではなく、式の種類で挙動が異なる。`28rem` は単純な rem 値で `calc()` を含まないためか通らなかった（推測）。
-
-### 2. `2xl:min-h-112`（spacing scale）
+`ClockCard.tsx` の className 結合で、`2xl:min-h-clock` の直後に `${` が直結していた:
 
 ```tsx
-<DashboardCard className="... 2xl:min-h-112">
+className={`... 2xl:min-h-clock${className ? ` ${className}` : ""}`}
 ```
 
-**結果**: 同じく CSS 生成されない。`min-h-64` などは生成済みのため、スキャンには問題ないが `2xl:` variant で spacing scale が効かなかった。
+Tailwind v4 の scanner はソースを静的にスキャンしてクラス候補を抽出するが、`2xl:min-h-clock${` のように識別子の直後に `$`/`{` が続くと、その固定クラスを候補として切り出せない。結果、対応する CSS が生成されない。
 
-### 3. `@utility` + `2xl:min-h-clock`
+同じ直結が `ControlOverlay.tsx` にもあった（`sm:top-5${...}`）。こちらは `sm:top-5` が未生成で、sm 以上でオーバーレイ位置が崩れる潜在バグになっていた。
 
-```css
-/* index.css */
-@utility min-h-clock {
-  min-height: 28rem;
+### 裏付け
+
+- 調査中に `min-h-clock 2xl:min-h-clock${...}` と書いたとき、空白で囲まれた `2xl:min-h-clock` は生成され、末尾 `${` 直結の `min-h-clock` は未生成だった。「base class が無いと variant が生成されない」という当初仮説では、base である `min-h-clock` 自体が未生成だった事実を説明できない。「直結したクラスは scanner に拾われない」なら全て説明できる
+- リポジトリ内の他の結合箇所（`DashboardCard.tsx`、`ThemeToggle.tsx`、`FormControls.tsx`）は全て `固定class ${className}` と**間に空白**があり、正常に拾われていた。直結していたのは `ClockCard` と `ControlOverlay` の 2 箇所だけ
+- Codex がローカルの Tailwind 4.3.0 で `2xl:min-h-[28rem]` / `2xl:min-h-112` / `2xl:min-h-clock` を候補として直接渡すと全て生成されることを確認。公式 docs でも `@utility` は variant で動作する旨が明記されている
+  - https://tailwindcss.com/docs/functions-and-directives
+  - https://tailwindcss.com/docs/detecting-classes-in-source-files
+  - https://tailwindcss.com/docs/responsive-design
+
+## 対応
+
+### 1. cn ユーティリティの導入
+
+`clsx` + `tailwind-merge` による `cn` を `apps/web/src/lib/cn.ts` に新設。各クラスを独立した引数で渡すため、テンプレートリテラル直結が構造的に起きなくなる。加えて twMerge により外部 className で内部デフォルトを安全に上書きできる。
+
+```ts
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]): string {
+  return twMerge(clsx(inputs));
 }
 ```
 
-```tsx
-<DashboardCard className="... 2xl:min-h-clock">
-```
+### 2. 直結の解消と回避策の撤去
 
-**結果**: CSS 生成されない。dev server 再起動後も同様。本番ビルドでも未生成。
+- `ClockCard.tsx`: `cn("... 2xl:min-h-[28rem]", className)` に変更（`@utility min-h-clock` 依存をやめ arbitrary value に戻す）
+- `index.css`: `@layer utilities` の `.\32 xl\:min-h-clock` 回避策を削除
+- `ControlOverlay.tsx`: `cn("... sm:top-5", !visible && "pointer-events-none")` に変更
 
-### 4. `@utility` + ベースクラス両方（調査用）
+### 3. 既存結合箇所の cn 移行
 
-```tsx
-<DashboardCard className="... min-h-clock 2xl:min-h-clock">
-```
+`DashboardCard.tsx` / `ThemeToggle.tsx` / `FormControls.tsx`（3 箇所）も一貫性のため cn に移行。挙動は等価。
 
-**結果**: `.\32 xl\:min-h-clock { min-height: 28rem }` が**生成された**。ただし `.min-h-clock` 自体は生成されない。
+## twMerge の挙動（テストで確認）
 
-## 調査で判明した Tailwind v4.3.0 の挙動
+`apps/web/src/lib/cn.test.ts` で実挙動を固定。特にカスタムカラートークンについて確認した結果:
 
-`@utility` で定義したカスタム utility に responsive variant を付けた場合、**ベースクラス名がソースファイルに存在しないと variant の CSS が生成されない**。
+- `cn("bg-surface", "bg-canvas")` → `"bg-canvas"`（後勝ち）
+- `cn("text-ink", "text-ink-muted")` → `"text-ink-muted"`（後勝ち）
+- `cn("min-h-0", "min-h-[28rem]")` → `"min-h-[28rem]"`（後勝ち）
+- `cn("min-h-0", "2xl:min-h-[28rem]")` → `"min-h-0 2xl:min-h-[28rem]"`（variant 違いは両方残す）
 
-| ソースの class | 生成される CSS |
-|---|---|
-| `2xl:min-h-clock` のみ | なし |
-| `min-h-clock` のみ | なし（`.min-h-clock` も生成されない） |
-| `min-h-clock` + `2xl:min-h-clock` | `.\32xl\:min-h-clock` のみ生成 |
+twMerge は `bg-`/`text-`/`min-h-` 等の標準プレフィックスでカスタム値クラスも競合グループとして認識し、後勝ちでマージする。当初「twMerge はカスタムトークンを認識しないので誤マージしない（から安全）」と書きかけたが、これは誤りで、正しくは「認識して正しくマージする」。`extendTailwindMerge` の追加設定は不要。
 
-built-in utility（`2xl:self-stretch`、`2xl:text-5xl` 等）は variant 単体で問題なく生成される。`@utility` で定義したカスタム utility は variant の解決時に base class のスキャン結果を参照するようで、base が見つからないと utility 自体が未定義扱いになる模様。Tailwind v4.3.0 が最新であり、将来のバージョンで修正される可能性がある。
+## 教訓
 
-## 採用した解決策
+- テンプレートリテラルでクラスを組むときは、固定クラスと式を直結しない。`cn(...)` または最低限スペース区切り（`固定class ${expr}`）にする
+- Tailwind の「クラスが生成されない」問題に当たったら、まず scanner がそのクラス文字列をソースから抽出できる形になっているかを疑う（`@utility` やバージョン要因より先に）
 
-```css
-/* index.css */
-@layer utilities {
-  @media (width >= 96rem) {
-    .\32 xl\:min-h-clock {
-      min-height: 28rem;
-    }
-  }
-}
-```
+## 検証
 
-`@layer utilities` に直接 CSS セレクターを書くことで、スキャンに依存せず確実に生成される。クラス名の CSS エスケープ（`\32 xl\:` → `2xl:`）は既存の `.\32 xl\:min-h-\[calc\(100vh-7rem\)\]` と同じ規則。本番ビルドおよび dev server の両方で `min-height: 448px` が適用されることを確認済み。
-
-## 注意点・今後
-
-- `@utility` + variant-only が修正された Tailwind バージョンがリリースされたら `@layer utilities` → `@utility` に戻す余地がある（ClockCard 側の `2xl:min-h-clock` クラス名はそのまま使える）
-- `@media (width >= 96rem)` は Tailwind v4 の `2xl` ブレークポイント定義と一致（`--breakpoint-2xl: 96rem`）
-- 今回 `1` と `2` が通らなかった正確な原因は未特定。Tailwind v4 の dev server CSS HMR が本セッション中にスタックしていた（style タグが 52149 bytes で固定）影響で「実は生成されていたが画面に反映されなかった」という可能性は否定できないが、本番ビルドでも確認したため確実に未生成だった
+- `pnpm --filter web build` 成功。生成 CSS に `.\32 xl\:min-h-\[28rem\]{min-height:28rem}` と `sm\:top-5{...}` が含まれ、`min-h-clock` は消滅
+- ブラウザ（1920×1080）で時計カードの `getComputedStyle().minHeight` が `448px`、ダッシュボード・設定モーダルとも回帰なし
+- `pnpm --filter web vitest run src/lib/cn.test.ts` 6 件パス
