@@ -19,6 +19,8 @@ pnpm dev
 - Web: http://asa.localhost:1355 ([portless](https://github.com/vercel-labs/portless))
 - API: http://asa-api.localhost:1355
 
+アプリ名は各 `dev` スクリプトの `portless run --name`（`asa` / `asa-api`）で指定する。git worktree では portless が自動でホスト名に worktree 名の prefix を付けるため、メインのチェックアウトと同時に起動してもルートが衝突しない（例: `worktree-foo.asa.localhost` / `worktree-foo.asa-api.localhost`）。Web は自分のホスト名から API オリジンを導出するので、worktree でも追加設定は不要。
+
 今のところ、1920x1080のフルスクリーンを想定
 
 ## 本番起動
