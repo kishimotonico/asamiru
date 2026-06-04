@@ -5,6 +5,7 @@ import process from "process";
 
 export default defineConfig({
   envDir: "../..",
+  base: process.env.VITE_BASE_PATH ?? "/",
   plugins: [react(), tailwindcss()],
   server: {
     port: process.env.PORT ? parseInt(process.env.PORT) : 5173,
