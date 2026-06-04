@@ -19,7 +19,7 @@ pnpm dev
 - Web: http://asa.localhost:1355 ([portless](https://github.com/vercel-labs/portless))
 - API: http://asa-api.localhost:1355
 
-アプリ名は各 `dev` スクリプトの `portless run --name`（`asa` / `asa-api`）で指定する。git worktree では portless が自動でホスト名に worktree 名の prefix を付けるため、メインのチェックアウトと同時に起動してもルートが衝突しない（例: `worktree-foo.asa.localhost` / `worktree-foo.asa-api.localhost`）。Web は自分のホスト名から API オリジンを導出するので、worktree でも追加設定は不要。
+アプリ名は各 `dev` スクリプトの `portless run --name`（`asa` / `asa-api`）で指定する。git worktree では portless が自動でホスト名に worktree 名の prefix を付けるため、メインのチェックアウトと同時に起動してもルートが衝突しない（例: `worktree-foo.asa.localhost` / `worktree-foo.asa-api.localhost`）。Vite dev proxy が `/api` リクエストを同一オリジンの API サーバーへ転送するため、CORS 設定は不要で worktree でも追加設定は不要。
 
 今のところ、1920x1080のフルスクリーンを想定
 
@@ -37,7 +37,7 @@ pnpm start   # API を起動（apps/web/dist も配信）
 - `PORT`: 待ち受けポート（既定 `8787`）。
 - `ASAMIRU_WEB_DIST`: 配信する Web ビルドの場所を変えたいときに指定。未指定なら `apps/web/dist` を使う。
 
-`VITE_*` はビルド時に埋め込まれる。`VITE_API_ORIGIN` を変更した場合は再ビルドが必要。
+`VITE_*` はビルド時に埋め込まれる。
 
 ### Raspberry Pi のモニター連動
 
@@ -69,7 +69,7 @@ ASAMIRU_DISPLAY_ENABLED=true ASAMIRU_DDC_BUS=10 pnpm start
 - スリープスケジュール（開始・終了時刻）
 - モニター連動の状態表示
 
-`.env.local` に `VITE_*` を書く必要はない。dev 時に API オリジンを変えたい場合のみ `VITE_API_ORIGIN` を指定する（本番ビルドでは不要）。
+`.env.local` に `VITE_*` を書く必要はない。
 
 天気はブラウザから Open-Meteo を直接取得する。次発列車と路線ごとの運行情報は `apps/api` が取得・正規化し、Web は **POST** `/api/rail/departures` と **POST** `/api/rail/line-status` で取得する。
 
