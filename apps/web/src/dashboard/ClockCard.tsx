@@ -25,7 +25,7 @@ export function ClockCard({ className, showSeconds = true }: ClockCardProps) {
 
   return (
     <DashboardCard
-      className={`justify-between lg:self-start 2xl:self-stretch${className ? ` ${className}` : ""}`}
+      className={`justify-center lg:self-start 2xl:self-stretch${className ? ` ${className}` : ""}`}
       style={{ minHeight: "28rem" }}
     >
       <div className="text-2xl font-medium tracking-normal text-ink-muted sm:text-3xl lg:text-4xl 2xl:text-5xl">
