@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { AsyncCardBoundary } from "./AsyncCardBoundary";
+import { CalendarCard } from "./CalendarCard";
 import { ClockCard } from "./ClockCard";
 import { WeatherErrorCard, WeatherLoadingCard } from "./WeatherCard";
 import { TrainsErrorCard, TrainsLoadingCard } from "./TrainsCard";
@@ -28,12 +29,15 @@ export function Dashboard({ accent }: DashboardProps) {
         >
           <TrainsDataCard className="lg:row-span-2" />
         </AsyncCardBoundary>
-        <AsyncCardBoundary
-          fallback={<WeatherLoadingCard />}
-          errorFallback={(error, retry) => <WeatherErrorCard error={error} onRetry={retry} />}
-        >
-          <WeatherDataCard />
-        </AsyncCardBoundary>
+        <div className="grid grid-cols-1 gap-4 sm:gap-5 xl:gap-6 2xl:grid-cols-[3fr_2fr]">
+          <AsyncCardBoundary
+            fallback={<WeatherLoadingCard />}
+            errorFallback={(error, retry) => <WeatherErrorCard error={error} onRetry={retry} />}
+          >
+            <WeatherDataCard />
+          </AsyncCardBoundary>
+          <CalendarCard />
+        </div>
       </div>
     </main>
   );
