@@ -22,5 +22,5 @@
 ## デバッグ方法
 
 - ブラウザを使ったデバッグは agent-browser を使う。それ以外は必要なときのみ
-- 開発サーバーは別のシェルで起動済みのことが多いので、`pnpm dev`を実行せず http://asa.localhost:1355 にアクセスしてOK
-
+- 開発サーバーは別のシェルで起動済みのことが多いので、`pnpm dev`を実行せず直接アクセスしてOK
+- アクセスURLは `http://asa.localhost:1355` または `http://<worktree-branch-name>.asa.localhost:1355`。IPアドレスによるアクセスは不可
