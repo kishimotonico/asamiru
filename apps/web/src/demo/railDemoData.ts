@@ -119,7 +119,7 @@ export function buildDemoLineStatus(lines: WatchedLine[]): LineStatusResponse {
         status: meta?.status ?? "平常運転",
         level: meta?.level ?? "ok",
         note: meta?.note,
-        sourceUrl: "#",
+        sourceUrl: watched.yahooUrl,
         checkedAt: now,
       };
     }),
