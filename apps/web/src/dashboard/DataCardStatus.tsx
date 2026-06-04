@@ -9,7 +9,7 @@ export function dataCardStatus(refreshing?: boolean, error?: Error | null): stri
 }
 
 export function DataUpdateWarning({ error }: { error: Error }) {
-  return <div className="mb-4 rounded-lg bg-[#fbece8] px-3 py-2 text-sm font-medium text-[#c14b3a]">前回更新失敗: {error.message}</div>;
+  return <div className="mb-4 rounded-lg bg-danger-soft px-3 py-2 text-sm font-medium text-danger">前回更新失敗: {error.message}</div>;
 }
 
 export function RetryButton({ onRetry }: { onRetry?: () => void }) {

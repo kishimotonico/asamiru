@@ -43,7 +43,7 @@ export function SleepSettingsSection() {
 
   return (
     <div className="space-y-5">
-      <label className="flex items-center gap-3 text-sm font-medium text-[#1f2024]">
+      <label className="flex items-center gap-3 text-sm font-medium text-ink">
         <input
           type="checkbox"
           checked={settings.enabled}
@@ -54,16 +54,16 @@ export function SleepSettingsSection() {
       </label>
 
       <div className="space-y-3">
-        <div className="text-xs font-medium text-[#9aa0aa]">
+        <div className="text-xs font-medium text-ink-subtle">
           起きてる時間帯（この時間帯の外は自動でスリープします）
         </div>
         {settings.windows.length === 0 ? (
-          <div className="rounded-md bg-[#f5f3ee] px-3 py-2 text-xs text-[#9aa0aa]">
+          <div className="rounded-md bg-surface-muted px-3 py-2 text-xs text-ink-subtle">
             時間帯が未設定です。自動スリープは無効になります。
           </div>
         ) : null}
         {settings.windows.map((w) => (
-          <div key={w.id} className="space-y-3 rounded-lg border border-[#e8e6df] p-4">
+          <div key={w.id} className="space-y-3 rounded-lg border border-border p-4">
             <div className="flex flex-wrap gap-1.5">
               {DAY_LABELS.map((label, day) => {
                 const active = w.days.includes(day);
@@ -75,7 +75,7 @@ export function SleepSettingsSection() {
                     className={`h-8 w-8 rounded-md text-sm font-medium transition ${
                       active
                         ? "bg-[var(--accent)] text-white"
-                        : "border border-[#d4d1c9] bg-white text-[#6e7480] hover:bg-[#f5f3ee]"
+                        : "border border-border-strong bg-surface text-ink-muted hover:bg-surface-muted"
                     }`}
                     aria-pressed={active}
                   >
@@ -91,7 +91,7 @@ export function SleepSettingsSection() {
                 onChange={(e) => patchWindow(w.id, { start: e.target.value })}
                 className="w-32"
               />
-              <span className="text-[#9aa0aa]">〜</span>
+              <span className="text-ink-subtle">〜</span>
               <TextInput
                 type="time"
                 value={w.end}

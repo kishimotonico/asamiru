@@ -4,10 +4,40 @@
 @theme {
   --font-sans: "Noto Sans JP", Inter, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "Roboto Mono", ui-monospace, monospace;
-  --shadow-card: 0 1px 0 rgba(20, 20, 20, 0.04), 0 6px 24px -16px rgba(20, 20, 20, 0.18);
+}
+
+/* セマンティックカラートークン。実体は :root / [data-theme=dark] の CSS 変数で切り替える。 */
+@theme inline {
+  --color-canvas: var(--c-canvas);
+  --color-surface: var(--c-surface);
+  --color-surface-muted: var(--c-surface-muted);
+  --color-ink: var(--c-ink);
+  --color-ink-muted: var(--c-ink-muted);
+  --color-ink-subtle: var(--c-ink-subtle);
+  --color-border: var(--c-border);
+  --color-border-strong: var(--c-border-strong);
+  --color-danger: var(--c-danger);
+  --color-danger-strong: var(--c-danger-strong);
+  --color-danger-soft: var(--c-danger-soft);
+  --color-success: var(--c-success);
+  --shadow-card: var(--c-shadow-card);
 }
 
 :root {
+  --c-canvas: #eeece4;
+  --c-surface: #ffffff;
+  --c-surface-muted: #f5f3ee;
+  --c-ink: #1f2024;
+  --c-ink-muted: #5a5f69;
+  --c-ink-subtle: #9aa0aa;
+  --c-border: #e8e6df;
+  --c-border-strong: #d4d1c9;
+  --c-danger: #c14b3a;
+  --c-danger-strong: #9a3d30;
+  --c-danger-soft: #fbece8;
+  --c-success: #c8dfc9;
+  --c-shadow-card: 0 1px 0 rgba(20, 20, 20, 0.04), 0 6px 24px -16px rgba(20, 20, 20, 0.18);
+
   /* Dashboard の <main> でも上書きされるが、body 直下の portal（モーダル等）でも accent を効かせるため :root にも定義 */
   --accent: #3a6b8a;
   color-scheme: light;
@@ -15,6 +45,25 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+[data-theme="dark"] {
+  --c-canvas: #15171c;
+  --c-surface: #1d2026;
+  --c-surface-muted: #262a31;
+  --c-ink: #e8e7e2;
+  --c-ink-muted: #b3b8c0;
+  --c-ink-subtle: #8b909a;
+  --c-border: #2b2f37;
+  --c-border-strong: #3b4049;
+  --c-danger: #e8897b;
+  --c-danger-strong: #f0a99e;
+  --c-danger-soft: #3a211c;
+  --c-success: #3f5a44;
+  --c-shadow-card: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 28px -16px rgba(0, 0, 0, 0.65);
+
+  --accent: #5b9bc4;
+  color-scheme: dark;
 }
 
 * {
@@ -29,4 +78,11 @@ body,
 
 body {
   margin: 0;
+  background: var(--c-canvas);
+}
+
+/* 背景クリックでカーソルを隠す（useCursorToggle） */
+.cursor-none,
+.cursor-none * {
+  cursor: none !important;
 }

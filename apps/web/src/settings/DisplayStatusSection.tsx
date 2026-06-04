@@ -15,16 +15,16 @@ export function DisplayStatusSection() {
   }, []);
 
   if (error) {
-    return <div className="text-sm text-[#c14b3a]">モニター情報の取得に失敗しました: {error}</div>;
+    return <div className="text-sm text-danger">モニター情報の取得に失敗しました: {error}</div>;
   }
 
   if (!info) {
-    return <div className="text-sm text-[#9aa0aa]">取得中...</div>;
+    return <div className="text-sm text-ink-subtle">取得中...</div>;
   }
 
   if (!info.enabled) {
     return (
-      <div className="text-sm text-[#9aa0aa]">
+      <div className="text-sm text-ink-subtle">
         モニター制御は無効です（ASAMIRU_DISPLAY_ENABLED=false）
       </div>
     );
@@ -45,23 +45,23 @@ export function DisplayStatusSection() {
   return (
     <div className="space-y-2 text-sm">
       <div className="flex items-center justify-between">
-        <span className="text-[#9aa0aa]">コネクタ</span>
-        <span className="font-mono text-xs text-[#1f2024]">{info.connector}</span>
+        <span className="text-ink-subtle">コネクタ</span>
+        <span className="font-mono text-xs text-ink">{info.connector}</span>
       </div>
       <div className="flex items-center justify-between">
-        <span className="text-[#9aa0aa]">接続状態</span>
-        <span className="text-[#1f2024]">{connectionLabel[info.connection] ?? info.connection}</span>
+        <span className="text-ink-subtle">接続状態</span>
+        <span className="text-ink">{connectionLabel[info.connection] ?? info.connection}</span>
       </div>
       <div className="flex items-center justify-between">
-        <span className="text-[#9aa0aa]">電源状態</span>
-        <span className="text-[#1f2024]">{powerLabel[info.power] ?? info.power}</span>
+        <span className="text-ink-subtle">電源状態</span>
+        <span className="text-ink">{powerLabel[info.power] ?? info.power}</span>
       </div>
       <div className="flex items-center justify-between">
-        <span className="text-[#9aa0aa]">希望電源</span>
-        <span className="text-[#1f2024]">{info.desiredPower ?? "—"}</span>
+        <span className="text-ink-subtle">希望電源</span>
+        <span className="text-ink">{info.desiredPower ?? "—"}</span>
       </div>
       {info.error && (
-        <div className="rounded-md bg-[#fef2f2] px-3 py-2 text-xs text-[#c14b3a]">
+        <div className="rounded-md bg-danger-soft px-3 py-2 text-xs text-danger">
           <span className="font-mono">{info.error.code}</span>: {info.error.message}
         </div>
       )}

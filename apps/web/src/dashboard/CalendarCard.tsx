@@ -11,12 +11,12 @@ export function CalendarCard({ className }: { className?: string }) {
     <DashboardCard label="カレンダー" kicker="Calendar" className={className}>
       <div className="flex items-end justify-end">
         <div className="text-right">
-          <div className="text-xl font-medium text-[#1f2024]">{monthLabel}</div>
-          <div className="mt-1 text-sm text-[#9aa0aa]">{today.toLocaleDateString("ja-JP", { weekday: "long" })}</div>
+          <div className="text-xl font-medium text-ink">{monthLabel}</div>
+          <div className="mt-1 text-sm text-ink-subtle">{today.toLocaleDateString("ja-JP", { weekday: "long" })}</div>
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-7 gap-1 text-center text-xs font-medium tracking-[0.08em] text-[#9aa0aa]">
+      <div className="mt-4 grid grid-cols-7 gap-1 text-center text-xs font-medium tracking-[0.08em] text-ink-subtle">
         {WEEKDAYS.map((weekday) => (
           <div key={weekday}>{weekday}</div>
         ))}
@@ -30,7 +30,7 @@ export function CalendarCard({ className }: { className?: string }) {
               className={`grid aspect-square min-h-9 place-items-center rounded-lg text-[15px] ${
                 day.isToday
                   ? "bg-[var(--accent)] font-semibold text-white"
-                  : "text-[#5a5f69]"
+                  : "text-ink-muted"
               }`}
             >
               {day.date}

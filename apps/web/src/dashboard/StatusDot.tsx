@@ -5,8 +5,8 @@ type StatusDotProps = {
 };
 
 const levelClassName = {
-  ok: "bg-[#c8c3b8]",
-  warn: "bg-[#c14b3a]",
+  ok: "bg-border-strong",
+  warn: "bg-danger",
   info: "bg-slate-500",
 };
 

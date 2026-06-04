@@ -2,7 +2,7 @@ import { Button as HeadlessButton, Description, Field, Input, Label, Select } fr
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
 
 const controlClassName =
-  "rounded-md border border-[#d4d1c9] bg-white px-3 py-2 text-sm text-[#1f2024] outline-none transition focus:border-[--accent] focus:ring-2 focus:ring-[--accent]/15 disabled:bg-[#f5f3ee] disabled:text-[#9aa0aa]";
+  "rounded-md border border-border-strong bg-surface px-3 py-2 text-sm text-ink outline-none transition focus:border-[--accent] focus:ring-2 focus:ring-[--accent]/15 disabled:bg-surface-muted disabled:text-ink-subtle";
 
 type SettingFieldProps = {
   label: string;
@@ -22,12 +22,12 @@ export function SettingField({ label, description, error, wide = false, children
       }
     >
       <div className="min-w-0">
-        <Label className="text-sm font-medium text-[#1f2024]">{label}</Label>
-        {description ? <Description className="mt-1 text-xs leading-relaxed text-[#9aa0aa]">{description}</Description> : null}
+        <Label className="text-sm font-medium text-ink">{label}</Label>
+        {description ? <Description className="mt-1 text-xs leading-relaxed text-ink-subtle">{description}</Description> : null}
       </div>
       <div className="min-w-0">
         {children}
-        {error ? <div className="mt-1 text-xs leading-relaxed text-[#c14b3a]">{error}</div> : null}
+        {error ? <div className="mt-1 text-xs leading-relaxed text-danger">{error}</div> : null}
       </div>
     </Field>
   );
@@ -55,9 +55,9 @@ type ActionButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 const buttonClassName: Record<NonNullable<ActionButtonProps["variant"]>, string> = {
   primary: "bg-[--accent] text-white hover:brightness-95 disabled:opacity-40",
-  secondary: "border border-[#d4d1c9] bg-white text-[#1f2024] hover:bg-[#f5f3ee] disabled:opacity-40",
-  ghost: "text-[#6e7480] hover:bg-[#f5f3ee] hover:text-[#1f2024] disabled:opacity-40",
-  danger: "text-[#9a3d30] hover:bg-[#f8ebe8] disabled:opacity-40",
+  secondary: "border border-border-strong bg-surface text-ink hover:bg-surface-muted disabled:opacity-40",
+  ghost: "text-ink-muted hover:bg-surface-muted hover:text-ink disabled:opacity-40",
+  danger: "text-danger-strong hover:bg-danger-soft disabled:opacity-40",
 };
 
 export function ActionButton({ variant = "secondary", className = "", type = "button", ...props }: ActionButtonProps) {

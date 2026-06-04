@@ -46,25 +46,25 @@ export function LineMultiSelect({ options, value, onChange }: LineMultiSelectPro
       onClose={() => setQuery("")}
     >
       <div className="relative">
-        <div className="flex min-h-10 items-center gap-2 rounded-md border border-[#d4d1c9] bg-white px-3 py-2 focus-within:border-[--accent] focus-within:ring-2 focus-within:ring-[--accent]/15">
+        <div className="flex min-h-10 items-center gap-2 rounded-md border border-border-strong bg-surface px-3 py-2 focus-within:border-[--accent] focus-within:ring-2 focus-within:ring-[--accent]/15">
           <ComboboxInput
             aria-label="路線を検索"
             displayValue={() => ""}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            className="min-w-0 flex-1 border-0 bg-transparent text-sm text-[#1f2024] outline-none placeholder:text-[#9aa0aa]"
+            className="min-w-0 flex-1 border-0 bg-transparent text-sm text-ink outline-none placeholder:text-ink-subtle"
             placeholder={summary}
           />
           {value.length > 0 ? (
             <Button
               type="button"
               onClick={() => onChange(value.filter((line) => !options.some((option) => option.yahooUrl === line.yahooUrl)))}
-              className="shrink-0 rounded px-1.5 py-1 text-xs font-medium text-[#9aa0aa] hover:bg-[#f5f3ee] hover:text-[#1f2024]"
+              className="shrink-0 rounded px-1.5 py-1 text-xs font-medium text-ink-subtle hover:bg-surface-muted hover:text-ink"
             >
               既定を解除
             </Button>
           ) : null}
-          <ComboboxButton className="shrink-0 rounded px-1.5 py-1 text-sm text-[#6e7480] hover:bg-[#f5f3ee]">
+          <ComboboxButton className="shrink-0 rounded px-1.5 py-1 text-sm text-ink-muted hover:bg-surface-muted">
             ▾
           </ComboboxButton>
         </div>
@@ -72,12 +72,12 @@ export function LineMultiSelect({ options, value, onChange }: LineMultiSelectPro
         {value.length > 0 ? (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {value.map((line) => (
-              <span key={line.yahooUrl} className="inline-flex max-w-full items-center gap-1 rounded-full bg-[#f5f3ee] px-2 py-1 text-xs text-[#5a5f69]">
+              <span key={line.yahooUrl} className="inline-flex max-w-full items-center gap-1 rounded-full bg-surface-muted px-2 py-1 text-xs text-ink-muted">
                 <span className="truncate">{line.name}</span>
                 <button
                   type="button"
                   onClick={() => onChange(value.filter((selected) => selected.yahooUrl !== line.yahooUrl))}
-                  className="rounded-full px-1 text-[#9aa0aa] hover:bg-white hover:text-[#1f2024]"
+                  className="rounded-full px-1 text-ink-subtle hover:bg-surface hover:text-ink"
                   aria-label={`${line.name}を解除`}
                 >
                   ×
@@ -89,20 +89,20 @@ export function LineMultiSelect({ options, value, onChange }: LineMultiSelectPro
 
         <ComboboxOptions
           anchor="bottom start"
-          className="z-[10020] mt-1 max-h-72 w-(--input-width) overflow-y-auto rounded-md border border-[#d4d1c9] bg-white p-1 shadow-xl empty:hidden"
+          className="z-[10020] mt-1 max-h-72 w-(--input-width) overflow-y-auto rounded-md border border-border-strong bg-surface p-1 shadow-xl empty:hidden"
         >
           {filteredOptions.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-[#9aa0aa]">該当する路線がありません</div>
+            <div className="px-3 py-2 text-sm text-ink-subtle">該当する路線がありません</div>
           ) : (
             filteredOptions.map((line) => (
               <ComboboxOption
                 key={line.yahooUrl}
                 value={line}
-                className="group flex cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm text-[#1f2024] data-focus:bg-[#f5f3ee]"
+                className="group flex cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm text-ink data-focus:bg-surface-muted"
               >
                 {({ selected }) => (
                   <>
-                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-[#d4d1c9] text-[11px] text-white group-data-selected:border-[--accent] group-data-selected:bg-[--accent]">
+                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-border-strong text-[11px] text-white group-data-selected:border-[--accent] group-data-selected:bg-[--accent]">
                       {selected ? "✓" : null}
                     </span>
                     <span className="min-w-0 flex-1 truncate">{line.name}</span>

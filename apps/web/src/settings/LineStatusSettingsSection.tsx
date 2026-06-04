@@ -49,12 +49,12 @@ export function LineStatusSettingsSection() {
 
       {customLines.length > 0 && (
         <div className="space-y-2">
-          <div className="text-xs font-medium text-[#9aa0aa]">カスタム路線</div>
+          <div className="text-xs font-medium text-ink-subtle">カスタム路線</div>
           {customLines.map((line) => (
-            <div key={line.yahooUrl} className="flex items-center justify-between gap-3 rounded-md bg-[#f5f3ee] px-3 py-2 text-sm">
+            <div key={line.yahooUrl} className="flex items-center justify-between gap-3 rounded-md bg-surface-muted px-3 py-2 text-sm">
               <div className="min-w-0">
-                <div className="truncate font-medium text-[#1f2024]">{line.name}</div>
-                <div className="truncate text-xs text-[#9aa0aa]">{line.yahooUrl}</div>
+                <div className="truncate font-medium text-ink">{line.name}</div>
+                <div className="truncate text-xs text-ink-subtle">{line.yahooUrl}</div>
               </div>
               <ActionButton
                 onClick={() => removeCustomLine(line.yahooUrl)}
@@ -69,8 +69,8 @@ export function LineStatusSettingsSection() {
         </div>
       )}
 
-      <div className="rounded-lg border border-[#e8e6df] p-4">
-        <div className="mb-3 text-xs font-medium text-[#9aa0aa]">カスタム路線を追加</div>
+      <div className="rounded-lg border border-border p-4">
+        <div className="mb-3 text-xs font-medium text-ink-subtle">カスタム路線を追加</div>
         <div className="grid gap-3 sm:grid-cols-[minmax(7rem,10rem)_minmax(0,1fr)_auto]">
           <TextInput
             type="text"
@@ -97,8 +97,8 @@ export function LineStatusSettingsSection() {
             追加
           </ActionButton>
         </div>
-        {customLineValidation ? <div className="mt-2 text-xs text-[#c14b3a]">{customLineValidation}</div> : null}
-        <div className="mt-2 text-xs leading-relaxed text-[#9aa0aa]">
+        {customLineValidation ? <div className="mt-2 text-xs text-danger">{customLineValidation}</div> : null}
+        <div className="mt-2 text-xs leading-relaxed text-ink-subtle">
           Yahoo!路線情報の `https://transit.yahoo.co.jp/diainfo/数字/数字` 形式に対応しています。
         </div>
       </div>
