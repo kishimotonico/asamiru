@@ -3,6 +3,7 @@ import type { TrainsData } from "./types";
 import { DataUpdateWarning, RetryButton, dataCardStatus } from "./DataCardStatus";
 import { DashboardCard } from "./DashboardCard";
 import { StatusDot } from "./StatusDot";
+import { railKindBadge } from "./railKind";
 
 function ArrowUpIcon() {
   return (
@@ -57,13 +58,14 @@ export function TrainsCard({
             {departures.map((departure, index) => {
               const delay = departure.delay ?? 0;
               const isRealtime = departure.source === "realtime";
+              const badge = railKindBadge(departure.kind);
               return (
                 <div
                   key={`${departure.time}-${departure.dest}-${index}`}
                   className={cn("py-5", index < departures.length - 1 && "border-b border-border")}
                 >
                   <div className="flex items-center gap-2.5 text-ink-muted">
-                    <span className="rounded bg-surface-muted px-2 py-0.5 text-sm font-semibold tracking-[0.04em]">
+                    <span className={cn("rounded px-2 py-0.5 text-sm font-semibold tracking-[0.04em]", badge.bg, badge.fg)}>
                       {departure.kind}
                     </span>
                     <span className="text-lg">{departure.dest}行</span>

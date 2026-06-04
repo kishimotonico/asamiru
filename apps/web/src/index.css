@@ -21,6 +21,13 @@
   --color-danger-soft: var(--c-danger-soft);
   --color-success: var(--c-success);
   --shadow-card: var(--c-shadow-card);
+
+  /* 京王線 種別カラー（路線図準拠のブランドカラー・ライト/ダーク共通の固定色） */
+  --color-rail-express: var(--c-rail-express);
+  --color-rail-semi-express-limited: var(--c-rail-semi-express-limited);
+  --color-rail-express2: var(--c-rail-express2);
+  --color-rail-semi-express: var(--c-rail-semi-express);
+  --color-rail-rapid: var(--c-rail-rapid);
 }
 
 :root {
@@ -40,6 +47,16 @@
 
   /* Dashboard の <main> でも上書きされるが、body 直下の portal（モーダル等）でも accent を効かせるため :root にも定義 */
   --accent: #3a6b8a;
+
+  /* 京王線 種別カラー（路線図準拠。スポイト値で上書き予定。TODO: お兄ちゃんがHPからスポイト） */
+  --c-rail-express: #cc0000;             /* 特急 */
+  --c-rail-semi-express-limited: #e87200; /* 準特急（2022年廃止種別） */
+  --c-rail-express2: #009a44;            /* 急行 */
+  --c-rail-semi-express: #0080c0;        /* 区間急行 */
+  --c-rail-rapid: #0050a0;              /* 快速 */
+  --c-rail-liner-from: #a08000;          /* 京王ライナー グラデーション開始色 */
+  --c-rail-liner-to: #1a3c5e;            /* 京王ライナー グラデーション終了色 */
+
   color-scheme: light;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -63,7 +80,16 @@
   --c-shadow-card: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 28px -16px rgba(0, 0, 0, 0.65);
 
   --accent: #5b9bc4;
+
+  /* 種別カラーはブランドカラー固定のため基本的にライト/ダーク共通。
+     視認性の問題がある種別のみここで調整する。 */
+
   color-scheme: dark;
+}
+
+/* 京王線 種別バッジ専用クラス（グラデーション等、@theme inline で表現できないもの） */
+.rail-badge--liner {
+  background: linear-gradient(135deg, var(--c-rail-liner-from), var(--c-rail-liner-to));
 }
 
 * {
