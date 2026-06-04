@@ -42,6 +42,13 @@ export function CalendarCard({ className }: { className?: string }) {
           ),
         )}
       </div>
+
+      <div className="mt-4 flex flex-1 flex-col border-t border-border pt-3">
+        <div className="text-[11px] tracking-[0.12em] text-ink-subtle">予定</div>
+        <div className="flex flex-1 items-center justify-center text-sm text-ink-subtle">
+          予定なし
+        </div>
+      </div>
     </DashboardCard>
   );
 }
