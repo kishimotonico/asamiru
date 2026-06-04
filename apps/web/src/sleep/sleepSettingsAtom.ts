@@ -78,3 +78,46 @@ export function isEffectiveWindow(w: SleepWindow): boolean {
 export function scheduleSleepingNow(now: Date, settings: SleepSettings): boolean {
   return settings.enabled && settings.windows.some(isEffectiveWindow) && !scheduleAwakeNow(now, settings.windows);
 }
+
+/**
+ * now より後に始まる、最も近いスケジュール起床帯の開始時刻（epoch ms）。
+ * 有効な起床帯が1つも無ければ null。最大7日先まで探索する。
+ *
+ * 日付またぎ窓（例 22:00-06:00）の開始は start 側（夜側）。
+ * 起床帯の途中で forceSleep した場合、その窓の開始は過去になるため
+ * 「次の窓開始」が返る（今の窓では戻らず次の窓で戻る）。
+ */
+export function nextScheduleWakeStartAfter(now: Date, windows: SleepWindow[]): number | null {
+  const effectiveWindows = windows.filter(isEffectiveWindow);
+  if (effectiveWindows.length === 0) return null;
+
+  const nowMs = now.getTime();
+  let earliest: number | null = null;
+
+  // 今日から7日先（合計8日分）の各窓の start 時刻を列挙し、now より後で最小のものを返す
+  for (let dayOffset = 0; dayOffset <= 7; dayOffset++) {
+    const candidate = new Date(now);
+    candidate.setHours(0, 0, 0, 0);
+    candidate.setDate(candidate.getDate() + dayOffset);
+
+    for (const w of effectiveWindows) {
+      const [startHStr, startMStr] = w.start.split(":");
+      const startH = Number(startHStr);
+      const startM = Number(startMStr);
+      const startDate = new Date(candidate);
+      startDate.setHours(startH, startM, 0, 0);
+
+      // start 時刻がその日の days に含まれるかチェック
+      if (!w.days.includes(startDate.getDay())) continue;
+
+      const startMs = startDate.getTime();
+      if (startMs > nowMs) {
+        if (earliest === null || startMs < earliest) {
+          earliest = startMs;
+        }
+      }
+    }
+  }
+
+  return earliest;
+}

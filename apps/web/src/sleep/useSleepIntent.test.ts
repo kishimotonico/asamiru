@@ -8,82 +8,230 @@ import type { SleepSettings } from "./sleepSettingsAtom";
 
 const AWAKE_MS = 15 * 60_000;
 
-function state(partial: Partial<SleepIntentState> = {}): SleepIntentState {
-  return { now: 1_000_000, awakeUntil: 0, manualSleeping: false, ...partial };
+// 月曜 06:00-09:00 の起床窓。2026-06-01 は月曜
+const settings: SleepSettings = {
+  enabled: true,
+  windows: [{ id: "w", days: [1], start: "06:00", end: "09:00" }],
+  manualWakeDurationMin: 15,
+};
+
+const monday0700 = new Date(2026, 5, 1, 7, 0).getTime(); // 起床帯の中
+const monday1200 = new Date(2026, 5, 1, 12, 0).getTime(); // スリープ帯
+
+function scheduleState(now = 1_000_000): SleepIntentState {
+  return { now, intent: { mode: "schedule" } };
+}
+function tempAwakeState(until: number, now = until - 1): SleepIntentState {
+  return { now, intent: { mode: "tempAwake", until } };
+}
+function forcedSleepState(releaseAt: number | null, now = 1_000_000): SleepIntentState {
+  return { now, intent: { mode: "forcedSleep", releaseAt } };
 }
 
-describe("sleepIntentReducer", () => {
-  it("tick は now だけ更新する", () => {
-    const next = sleepIntentReducer(state({ awakeUntil: 5, manualSleeping: true }), { type: "tick", now: 42 });
-    expect(next).toEqual({ now: 42, awakeUntil: 5, manualSleeping: true });
+// --- reducer ---
+
+describe("sleepIntentReducer: tick", () => {
+  it("schedule は now を更新するだけ（intent 不変）", () => {
+    const s = scheduleState(1000);
+    const next = sleepIntentReducer(s, { type: "tick", now: 2000 });
+    expect(next.now).toBe(2000);
+    expect(next.intent.mode).toBe("schedule");
   });
 
-  it("manualSleep は manualSleeping を立て now を進める", () => {
-    const next = sleepIntentReducer(state(), { type: "manualSleep", now: 200 });
-    expect(next.manualSleeping).toBe(true);
-    expect(next.now).toBe(200);
+  it("tempAwake の now < until では schedule へ変化しない", () => {
+    const s = tempAwakeState(5000, 3000);
+    const next = sleepIntentReducer(s, { type: "tick", now: 4000 });
+    expect(next.intent.mode).toBe("tempAwake");
   });
 
-  it("wake は manual を解除し awakeUntil をセットする", () => {
-    const next = sleepIntentReducer(state({ manualSleeping: true }), { type: "wake", now: 1000, awakeMs: AWAKE_MS });
-    expect(next.manualSleeping).toBe(false);
-    expect(next.awakeUntil).toBe(1000 + AWAKE_MS);
-    expect(next.now).toBe(1000);
+  it("tempAwake の now >= until で schedule へ正規化する", () => {
+    const s = tempAwakeState(5000, 4000);
+    const next = sleepIntentReducer(s, { type: "tick", now: 5000 });
+    expect(next.intent.mode).toBe("schedule");
+    expect(next.now).toBe(5000);
   });
 
-  it("extend は manual を変えず awakeUntil を延長する", () => {
-    const next = sleepIntentReducer(state({ manualSleeping: true }), { type: "extend", now: 2000, awakeMs: AWAKE_MS });
-    expect(next.manualSleeping).toBe(true);
-    expect(next.awakeUntil).toBe(2000 + AWAKE_MS);
+  it("forcedSleep で releaseAt=null なら tick で解除されない", () => {
+    const s = forcedSleepState(null, 1000);
+    const next = sleepIntentReducer(s, { type: "tick", now: 9_999_999 });
+    expect(next.intent.mode).toBe("forcedSleep");
   });
 
-  it("clearManual は manualSleeping を解除する（既に false なら同一参照）", () => {
-    const off = state({ manualSleeping: false });
-    expect(sleepIntentReducer(off, { type: "clearManual" })).toBe(off);
-    const on = state({ manualSleeping: true });
-    expect(sleepIntentReducer(on, { type: "clearManual" }).manualSleeping).toBe(false);
+  it("forcedSleep で now < releaseAt なら解除されない", () => {
+    const s = forcedSleepState(5000, 3000);
+    const next = sleepIntentReducer(s, { type: "tick", now: 4999 });
+    expect(next.intent.mode).toBe("forcedSleep");
   });
 
-  it("resyncAwake は一時起床中のときだけ期限を取り直す", () => {
-    const sleeping = state({ awakeUntil: 0, now: 500 });
-    expect(sleepIntentReducer(sleeping, { type: "resyncAwake", now: 500, awakeMs: AWAKE_MS })).toBe(sleeping);
-
-    const awake = state({ awakeUntil: 10_000, now: 500 });
-    const next = sleepIntentReducer(awake, { type: "resyncAwake", now: 600, awakeMs: AWAKE_MS });
-    expect(next.awakeUntil).toBe(600 + AWAKE_MS);
+  it("forcedSleep で now >= releaseAt なら schedule へ正規化する", () => {
+    const s = forcedSleepState(5000, 3000);
+    const next = sleepIntentReducer(s, { type: "tick", now: 5000 });
+    expect(next.intent.mode).toBe("schedule");
+    expect(next.now).toBe(5000);
   });
 });
 
-describe("selectDesiredSleeping", () => {
-  // 平日の朝だけ起床する設定。月曜 06:00-09:00。
-  const settings: SleepSettings = {
-    enabled: true,
-    windows: [{ id: "w", days: [1], start: "06:00", end: "09:00" }],
-    manualWakeDurationMin: 15,
-  };
-  const monday0700 = new Date(2026, 5, 1, 7, 0).getTime(); // 2026-06-01 は月曜
-  const monday1200 = new Date(2026, 5, 1, 12, 0).getTime();
+describe("sleepIntentReducer: activity", () => {
+  it("schedule から tempAwake へ遷移する", () => {
+    const s = scheduleState(1000);
+    const next = sleepIntentReducer(s, { type: "activity", now: 2000, awakeMs: AWAKE_MS });
+    expect(next.intent.mode).toBe("tempAwake");
+    if (next.intent.mode === "tempAwake") {
+      expect(next.intent.until).toBe(2000 + AWAKE_MS);
+    }
+    expect(next.now).toBe(2000);
+  });
 
+  it("tempAwake から tempAwake へ（until を更新）", () => {
+    const s = tempAwakeState(3000, 2000);
+    const next = sleepIntentReducer(s, { type: "activity", now: 2500, awakeMs: AWAKE_MS });
+    expect(next.intent.mode).toBe("tempAwake");
+    if (next.intent.mode === "tempAwake") {
+      expect(next.intent.until).toBe(2500 + AWAKE_MS);
+    }
+  });
+
+  it("forcedSleep から tempAwake へ遷移する（強制解除）", () => {
+    const s = forcedSleepState(9_999_999, 1000);
+    const next = sleepIntentReducer(s, { type: "activity", now: 2000, awakeMs: AWAKE_MS });
+    expect(next.intent.mode).toBe("tempAwake");
+    if (next.intent.mode === "tempAwake") {
+      expect(next.intent.until).toBe(2000 + AWAKE_MS);
+    }
+  });
+});
+
+describe("sleepIntentReducer: forceSleep", () => {
+  it("schedule から forcedSleep へ遷移する（releaseAt あり）", () => {
+    const s = scheduleState(1000);
+    const next = sleepIntentReducer(s, { type: "forceSleep", now: 2000, releaseAt: 5000 });
+    expect(next.intent.mode).toBe("forcedSleep");
+    if (next.intent.mode === "forcedSleep") {
+      expect(next.intent.releaseAt).toBe(5000);
+    }
+    expect(next.now).toBe(2000);
+  });
+
+  it("tempAwake から forcedSleep へ遷移する", () => {
+    const s = tempAwakeState(9_999_999, 1000);
+    const next = sleepIntentReducer(s, { type: "forceSleep", now: 1500, releaseAt: null });
+    expect(next.intent.mode).toBe("forcedSleep");
+    if (next.intent.mode === "forcedSleep") {
+      expect(next.intent.releaseAt).toBeNull();
+    }
+  });
+
+  it("forcedSleep から forcedSleep へ（releaseAt を更新）", () => {
+    const s = forcedSleepState(5000, 1000);
+    const next = sleepIntentReducer(s, { type: "forceSleep", now: 2000, releaseAt: 8000 });
+    expect(next.intent.mode).toBe("forcedSleep");
+    if (next.intent.mode === "forcedSleep") {
+      expect(next.intent.releaseAt).toBe(8000);
+    }
+  });
+});
+
+describe("sleepIntentReducer: resync", () => {
+  it("schedule は resync で変化しない（同一参照）", () => {
+    const s = scheduleState(1000);
+    const next = sleepIntentReducer(s, { type: "resync", now: 2000, awakeMs: AWAKE_MS, releaseAt: null });
+    expect(next).toBe(s); // 同一参照
+  });
+
+  it("tempAwake 中は until を新しい awakeMs で取り直す", () => {
+    const s = tempAwakeState(5000, 1000);
+    const next = sleepIntentReducer(s, { type: "resync", now: 2000, awakeMs: AWAKE_MS, releaseAt: null });
+    expect(next.intent.mode).toBe("tempAwake");
+    if (next.intent.mode === "tempAwake") {
+      expect(next.intent.until).toBe(2000 + AWAKE_MS);
+    }
+    expect(next.now).toBe(2000);
+  });
+
+  it("forcedSleep 中は releaseAt を取り直す", () => {
+    const s = forcedSleepState(5000, 1000);
+    const next = sleepIntentReducer(s, { type: "resync", now: 2000, awakeMs: AWAKE_MS, releaseAt: 9000 });
+    expect(next.intent.mode).toBe("forcedSleep");
+    if (next.intent.mode === "forcedSleep") {
+      expect(next.intent.releaseAt).toBe(9000);
+    }
+    expect(next.now).toBe(2000);
+  });
+
+  it("tempAwake 中はスケジュール内外を問わず反映する（旧挙動からの変更点）", () => {
+    // 起床帯（月曜07:00）の中でも tempAwake なら duration 変更を反映する
+    const s = tempAwakeState(monday0700 + 5000, monday0700);
+    const next = sleepIntentReducer(s, {
+      type: "resync",
+      now: monday0700 + 1000,
+      awakeMs: AWAKE_MS * 2,
+      releaseAt: null,
+    });
+    expect(next.intent.mode).toBe("tempAwake");
+    if (next.intent.mode === "tempAwake") {
+      expect(next.intent.until).toBe(monday0700 + 1000 + AWAKE_MS * 2);
+    }
+  });
+});
+
+// --- selector ---
+
+describe("selectDesiredSleeping: schedule モード", () => {
   it("起床帯の中ではスリープしない", () => {
-    expect(selectDesiredSleeping(state({ now: monday0700 }), settings)).toBe(false);
+    expect(selectDesiredSleeping(scheduleState(monday0700), settings)).toBe(false);
   });
 
   it("起床帯の外ではスリープする", () => {
-    expect(selectDesiredSleeping(state({ now: monday1200 }), settings)).toBe(true);
+    expect(selectDesiredSleeping(scheduleState(monday1200), settings)).toBe(true);
   });
 
-  it("一時起床中はスリープ帯でもスリープしない", () => {
-    expect(
-      selectDesiredSleeping(state({ now: monday1200, awakeUntil: monday1200 + AWAKE_MS }), settings),
-    ).toBe(false);
-  });
-
-  it("手動スリープは起床帯でもスリープする", () => {
-    expect(selectDesiredSleeping(state({ now: monday0700, manualSleeping: true }), settings)).toBe(true);
-  });
-
-  it("有効な起床帯が無ければ自動スリープしない", () => {
+  it("有効な窓が無ければスリープしない", () => {
     const noWindow: SleepSettings = { ...settings, windows: [] };
-    expect(selectDesiredSleeping(state({ now: monday1200 }), noWindow)).toBe(false);
+    expect(selectDesiredSleeping(scheduleState(monday1200), noWindow)).toBe(false);
+  });
+});
+
+describe("selectDesiredSleeping: tempAwake モード", () => {
+  it("until 未到達なら起床帯外でもスリープしない", () => {
+    const s = tempAwakeState(monday1200 + AWAKE_MS, monday1200);
+    expect(selectDesiredSleeping(s, settings)).toBe(false);
+  });
+
+  it("until 到達後はスケジュール評価に戻る（スリープ帯ならスリープ）", () => {
+    const s: SleepIntentState = { now: monday1200 + AWAKE_MS, intent: { mode: "tempAwake", until: monday1200 + AWAKE_MS } };
+    expect(selectDesiredSleeping(s, settings)).toBe(true);
+  });
+
+  it("until 到達後はスケジュール評価に戻る（起床帯ならスリープしない）", () => {
+    const s: SleepIntentState = { now: monday0700 + AWAKE_MS, intent: { mode: "tempAwake", until: monday0700 } };
+    expect(selectDesiredSleeping(s, settings)).toBe(false);
+  });
+});
+
+describe("selectDesiredSleeping: forcedSleep モード", () => {
+  it("releaseAt=null なら常にスリープ（起床帯でも）", () => {
+    const s = forcedSleepState(null, monday0700);
+    expect(selectDesiredSleeping(s, settings)).toBe(true);
+  });
+
+  it("releaseAt 未到達なら常にスリープ（起床帯でも）", () => {
+    const s = forcedSleepState(monday0700 + 10_000, monday0700);
+    expect(selectDesiredSleeping(s, settings)).toBe(true);
+  });
+
+  it("releaseAt 到達後はスケジュール評価（スリープ帯ならスリープ）", () => {
+    const s: SleepIntentState = {
+      now: monday1200,
+      intent: { mode: "forcedSleep", releaseAt: monday1200 },
+    };
+    expect(selectDesiredSleeping(s, settings)).toBe(true);
+  });
+
+  it("releaseAt 到達後はスケジュール評価（起床帯ならスリープしない）", () => {
+    const s: SleepIntentState = {
+      now: monday0700,
+      intent: { mode: "forcedSleep", releaseAt: monday0700 },
+    };
+    expect(selectDesiredSleeping(s, settings)).toBe(false);
   });
 });

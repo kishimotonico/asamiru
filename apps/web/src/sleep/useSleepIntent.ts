@@ -1,72 +1,98 @@
 import { useEffect, useMemo, useReducer } from "react";
-import { scheduleAwakeNow, scheduleSleepingNow, type SleepSettings } from "./sleepSettingsAtom";
+import {
+  nextScheduleWakeStartAfter,
+  scheduleSleepingNow,
+  type SleepSettings,
+} from "./sleepSettingsAtom";
 
 export const TICK_INTERVAL_MS = 15_000;
 
 /**
- * アプリの「スリープ意図」を司る状態。物理モニターの状態は持たない
- * （責務分離: モニター連動は useDisplaySync、入力は useGlobalInput）。
- *
- * - now: 境界・期限の再評価に使う現在時刻
- * - awakeUntil: ユーザー操作による一時起床の期限（ms epoch）
- * - manualSleeping: 手動スリープ中か（起床帯でもスリープを維持する）
+ * アプリの「スリープ意図」を表す判別共用体。
+ * - schedule: スケジュールに従う（既定状態）
+ * - tempAwake: 操作による期限つき一時起床
+ * - forcedSleep: 手動/外部OFFによる強制スリープ。releaseAt で自動解除（null は操作/外部ONのみ）
  */
+export type SleepIntent =
+  | { mode: "schedule" }
+  | { mode: "tempAwake"; until: number }
+  | { mode: "forcedSleep"; releaseAt: number | null };
+
 export type SleepIntentState = {
+  /** 境界・期限の再評価に使う現在時刻（tick で更新） */
   now: number;
-  awakeUntil: number;
-  manualSleeping: boolean;
+  intent: SleepIntent;
 };
 
 export type SleepIntentAction =
   | { type: "tick"; now: number }
-  /** 手動スリープ（s キー / スリープボタン / 物理OFF）。起床帯でもスリープを維持 */
-  | { type: "manualSleep"; now: number }
-  /** スリープからの復帰（操作 / 物理ON）。manual を解除し一時起床期限をセット */
-  | { type: "wake"; now: number; awakeMs: number }
-  /** 起床中の操作。manual は変えず一時起床期限だけ延長 */
-  | { type: "extend"; now: number; awakeMs: number }
-  /** スケジュール上の起床帯に入った瞬間の manual 解除 */
-  | { type: "clearManual" }
-  /** 起床期限の再評価（manualWakeDurationMin 設定変更の反映用）*/
-  | { type: "resyncAwake"; now: number; awakeMs: number };
+  /** 操作 / 外部ON（旧 wake + extend を統合） */
+  | { type: "activity"; now: number; awakeMs: number }
+  /** 手動スリープ / 外部OFF / s キー */
+  | { type: "forceSleep"; now: number; releaseAt: number | null }
+  /** 設定変更の反映（tempAwake.until と forcedSleep.releaseAt を取り直す） */
+  | { type: "resync"; now: number; awakeMs: number; releaseAt: number | null };
 
 export function sleepIntentReducer(state: SleepIntentState, action: SleepIntentAction): SleepIntentState {
   switch (action.type) {
-    case "tick":
-      return { ...state, now: action.now };
-    case "manualSleep":
-      return { ...state, manualSleeping: true, now: action.now };
-    case "wake":
-      return { now: action.now, awakeUntil: action.now + action.awakeMs, manualSleeping: false };
-    case "extend":
-      return { ...state, now: action.now, awakeUntil: action.now + action.awakeMs };
-    case "clearManual":
-      return state.manualSleeping ? { ...state, manualSleeping: false } : state;
-    case "resyncAwake":
-      // 一時起床中のときだけ期限を新しい duration で取り直す
-      return state.awakeUntil > action.now
-        ? { ...state, now: action.now, awakeUntil: action.now + action.awakeMs }
-        : state;
+    case "tick": {
+      const { now } = action;
+      let intent = state.intent;
+      // tempAwake 失効: schedule へ正規化
+      if (intent.mode === "tempAwake" && now >= intent.until) {
+        intent = { mode: "schedule" };
+      }
+      // forcedSleep 解除時刻到達: schedule へ正規化
+      if (intent.mode === "forcedSleep" && intent.releaseAt !== null && now >= intent.releaseAt) {
+        intent = { mode: "schedule" };
+      }
+      return { now, intent };
+    }
+    case "activity":
+      return { now: action.now, intent: { mode: "tempAwake", until: action.now + action.awakeMs } };
+    case "forceSleep":
+      return { now: action.now, intent: { mode: "forcedSleep", releaseAt: action.releaseAt } };
+    case "resync": {
+      const { now, awakeMs, releaseAt } = action;
+      if (state.intent.mode === "tempAwake") {
+        return { now, intent: { mode: "tempAwake", until: now + awakeMs } };
+      }
+      if (state.intent.mode === "forcedSleep") {
+        return { now, intent: { mode: "forcedSleep", releaseAt } };
+      }
+      // schedule は無変化（now も更新しない）
+      return state;
+    }
   }
 }
 
 /**
- * スリープ意図を算出する（純粋関数）。
- * desiredSleeping = manualSleeping || (スケジュール上スリープ帯 && 一時起床していない)
+ * スリープ意図から「スリープすべきか」を算出する（純粋関数）。
+ *
+ * - forcedSleep: releaseAt 未到達なら true、到達後はスケジュール評価
+ * - tempAwake: until 未到達なら false、失効後はスケジュール評価
+ * - schedule: scheduleSleepingNow で評価
+ *
+ * tick が走る前のレンダーでも正しく評価できるよう、失効/解除の判定を reducer と冗長に持つ。
  */
-export function selectDesiredSleeping(state: SleepIntentState, settings: SleepSettings): boolean {
-  const scheduleSleeping = scheduleSleepingNow(new Date(state.now), settings);
-  const awake = state.now < state.awakeUntil;
-  return state.manualSleeping || (scheduleSleeping && !awake);
+export function selectDesiredSleeping(s: SleepIntentState, settings: SleepSettings): boolean {
+  switch (s.intent.mode) {
+    case "forcedSleep":
+      return s.intent.releaseAt !== null && s.now >= s.intent.releaseAt
+        ? scheduleSleepingNow(new Date(s.now), settings)
+        : true;
+    case "tempAwake":
+      return s.now < s.intent.until ? false : scheduleSleepingNow(new Date(s.now), settings);
+    case "schedule":
+      return scheduleSleepingNow(new Date(s.now), settings);
+  }
 }
 
 export type SleepIntentActions = {
-  /** 手動スリープに入る */
-  manualSleep: () => void;
-  /** スリープから復帰し一時起床する */
-  wake: () => void;
-  /** 起床中の操作で一時起床期限を延長する */
-  extend: () => void;
+  /** 操作 / 外部ON（スリープ中の復帰・起床中の延長を統合）*/
+  activity: () => void;
+  /** 手動スリープ / 外部OFF */
+  forceSleep: () => void;
 };
 
 export type UseSleepIntent = {
@@ -76,14 +102,13 @@ export type UseSleepIntent = {
 };
 
 /**
- * スリープ意図の state machine。tick・スケジュール境界・設定変更への追従を内包する。
- * 物理モニター連動からの「外部ON/OFF」は wake / manualSleep を呼ぶことで反映する。
+ * スリープ意図のステートマシン。tick・設定変更への追従を内包する。
+ * 物理モニター連動からの「外部ON/OFF」は activity / forceSleep を呼ぶことで反映する。
  */
 export function useSleepIntent(settings: SleepSettings): UseSleepIntent {
   const [state, dispatch] = useReducer(sleepIntentReducer, undefined, () => ({
     now: Date.now(),
-    awakeUntil: 0,
-    manualSleeping: false,
+    intent: { mode: "schedule" } as SleepIntent,
   }));
 
   const awakeMs = settings.manualWakeDurationMin * 60_000;
@@ -95,33 +120,31 @@ export function useSleepIntent(settings: SleepSettings): UseSleepIntent {
     return () => window.clearInterval(id);
   }, []);
 
-  // スケジュール起床帯の false→true エッジで manualSleeping を解除
-  useEffect(() => {
-    if (!state.manualSleeping) return;
-    const wasAwake = scheduleAwakeNow(new Date(state.now - TICK_INTERVAL_MS), settings.windows);
-    const isAwake = scheduleAwakeNow(new Date(state.now), settings.windows);
-    if (!wasAwake && isAwake) dispatch({ type: "clearManual" });
-  }, [state.now, state.manualSleeping, settings]);
-
-  // 自動スリープ時間の設定変更を一時起床期限へ即反映。
-  // 「スリープ帯であること」は Effect 側で、「一時起床中であること」は reducer 側
-  // （awakeUntil > now）で判定し、両方を満たすときだけ期限を取り直す。
+  // 設定変更を現在の intent へ即反映（resync）
+  // - tempAwake 中: until を新しい duration で取り直す（スケジュール内外を問わず反映）
+  // - forcedSleep 中: releaseAt を nextScheduleWakeStartAfter で取り直す
+  // - schedule 中: 無変化
   useEffect(() => {
     const now = Date.now();
-    if (scheduleSleepingNow(new Date(now), settings)) {
-      dispatch({ type: "resyncAwake", now, awakeMs });
-    }
-    // manualWakeDurationMin の変化にのみ反応する
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings.manualWakeDurationMin]);
+    const releaseAt = settings.enabled
+      ? nextScheduleWakeStartAfter(new Date(now), settings.windows)
+      : null;
+    dispatch({ type: "resync", now, awakeMs, releaseAt });
+  }, [settings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const actions = useMemo<SleepIntentActions>(
     () => ({
-      manualSleep: () => dispatch({ type: "manualSleep", now: Date.now() }),
-      wake: () => dispatch({ type: "wake", now: Date.now(), awakeMs }),
-      extend: () => dispatch({ type: "extend", now: Date.now(), awakeMs }),
+      activity: () => dispatch({ type: "activity", now: Date.now(), awakeMs }),
+      forceSleep: () => {
+        const now = Date.now();
+        const releaseAt = settings.enabled
+          ? nextScheduleWakeStartAfter(new Date(now), settings.windows)
+          : null;
+        dispatch({ type: "forceSleep", now, releaseAt });
+      },
     }),
-    [awakeMs],
+    // awakeMs / settings の変化で action クロージャを再生成
+    [awakeMs, settings], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   return { now: state.now, desiredSleeping, actions };
