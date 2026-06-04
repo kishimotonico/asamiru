@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { DesiredDisplayPower, DisplayPower } from "@asamiru/shared";
 import { fetchDisplayStatus, putDesiredPower, subscribeDisplayEvents } from "../data/display";
 import { createLogger } from "../lib/logger";
+import { connectWithRetry } from "./displayConnectHelper";
 
 const log = createLogger("display");
 
@@ -29,6 +30,7 @@ export type DisplaySyncCallbacks = {
  * - サーバーの desired-power に意図を反映する（standby/on）。観測値と一致するなら送らない。
  * - SSE でモニター状態を購読し、外部操作（powerOrigin=external）をスリープ意図へ橋渡しする。
  * - 切断中の物理操作は、再接続時に最後の観測値との差分で検知する。
+ * - マウント時にバックオフ付きリトライで GET を試みる。サーバーが起動前でも自動的に接続を確立する。
  *
  * アプリのスリープ意図そのものは持たない（useSleepIntent の責務）。
  */
@@ -57,33 +59,18 @@ export function useDisplaySync({ desiredSleeping, onExternalOn, onExternalOff }:
     });
   }, [desiredSleeping, enabled]);
 
-  // SSE 購読・初回同期（マウント時1度だけ）
+  // SSE 購読・初回同期（マウント時1度だけ、バックオフ付きリトライ）
   useEffect(() => {
-    let cleanup: (() => void) | null = null;
+    const cancelled = { value: false };
+    // connectWithRetry が resolve したあと unsubscribe を保持するためのコンテナ。
+    // アンマウントが connectWithRetry の resolve より先に起きた場合は cancelled.value=true に
+    // なっているため subscribe は呼ばれず、unsubscribe は no-op になる。
+    const cleanupRef = { fn: () => undefined as void };
 
     const applyExternalPower = (next: DisplayPower) => {
       if (next === "off") onExternalOffRef.current();
       else if (next === "on") onExternalOnRef.current();
     };
-
-    // 起動時の初回同期。スリープ意図は変えず、有効状態と観測 power をセットするだけ。
-    // 実際の待機・復帰は desired power 送信 Effect が現在の意図に基づいて行う。
-    async function init(): Promise<boolean> {
-      try {
-        const info = await fetchDisplayStatus();
-        if (!info.enabled) {
-          log.info("monitor integration is disabled");
-          return false;
-        }
-        log.info(`initial status power=${info.power} origin=${info.powerOrigin} connection=${info.connection}`);
-        setEnabled(true);
-        setPower(info.power);
-        return true;
-      } catch (err) {
-        log.warn("fetchDisplayStatus failed:", err);
-        return false;
-      }
-    }
 
     // 再接続時の再同期。切断中の物理操作を、最後に観測した power との差分で検知する
     // （瞬間値の powerOrigin には頼らない）。
@@ -101,32 +88,57 @@ export function useDisplaySync({ desiredSleeping, onExternalOn, onExternalOff }:
       }
     }
 
-    function subscribe() {
-      log.info("subscribing to monitor events");
-      const sub = subscribeDisplayEvents({
-        onStatus: (status) => {
-          log.info(`event power=${status.power} origin=${status.powerOrigin} connection=${status.connection}`);
-          setPower(status.power);
-          if (status.powerOrigin === "external") {
-            log.info(`applying external power=${status.power}`);
-            applyExternalPower(status.power);
-          }
+    // connectWithRetry を起動。
+    // cancelled フラグが true のうちは onConnected / subscribe は呼ばれない。
+    void connectWithRetry(
+      cancelled,
+      {
+        fetchStatus: fetchDisplayStatus,
+        subscribe: (cbs) => {
+          log.info("subscribing to monitor events");
+          return subscribeDisplayEvents({
+            onStatus: (status) => {
+              log.info(`event power=${status.power} origin=${status.powerOrigin} connection=${status.connection}`);
+              setPower(status.power);
+              if (status.powerOrigin === "external") {
+                log.info(`applying external power=${status.power}`);
+                cbs.onStatus(status.power, status.powerOrigin);
+              }
+            },
+            onReconnect: () => {
+              log.info("monitor event stream connected");
+              cbs.onReconnect();
+            },
+          });
+        },
+        onConnected: (initialPower) => {
+          log.info(`initial status power=${initialPower}`);
+          setEnabled(true);
+          setPower(initialPower);
+        },
+        onRetry: (err, backoffMs) => {
+          log.warn(`fetchDisplayStatus failed, retrying in ${backoffMs}ms:`, err);
+        },
+        onDisabled: () => {
+          log.info("monitor integration is disabled");
+        },
+        sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      },
+      {
+        onStatus: (power) => {
+          applyExternalPower(power as DisplayPower);
         },
         onReconnect: () => {
-          log.info("monitor event stream connected");
           void reconcile();
         },
-      });
-      cleanup = sub.unsubscribe;
-    }
-
-    // setEnabled() の React state 反映前でも、GET の結果に基づいて購読を開始する。
-    void init().then((isEnabled) => {
-      if (isEnabled) subscribe();
+      },
+    ).then((unsubscribe) => {
+      cleanupRef.fn = unsubscribe;
     });
 
     return () => {
-      cleanup?.();
+      cancelled.value = true;
+      cleanupRef.fn();
     };
     // マウント時だけ実行
     // eslint-disable-next-line react-hooks/exhaustive-deps
