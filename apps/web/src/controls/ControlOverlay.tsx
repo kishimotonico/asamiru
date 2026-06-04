@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { SettingsModal } from "../settings/SettingsModal";
 import { ThemeToggle } from "../theme/ThemeToggle";
 import type { EffectiveTheme } from "../theme/themeAtom";
 import { useFullscreen } from "../sleep/useFullscreen";
+
+const HIDE_DELAY_MS = 2000;
 
 type ControlOverlayProps = {
   effective: EffectiveTheme;
@@ -11,20 +13,36 @@ type ControlOverlayProps = {
 };
 
 /**
- * 画面全体に対する操作層。右上に集約し、通常はほぼ目立たず hover/focus で明確化する。
+ * 画面全体に対する操作層。右上に集約し、ポインター操作中のみ表示する。
  * 設定モーダルの開閉状態はこの層が所有する（アプリ全体の設定という位置づけ）。
  */
 export function ControlOverlay({ effective, onSleepClick }: ControlOverlayProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { isFullscreen, toggle: toggleFullscreen } = useFullscreen();
+  const [visible, setVisible] = useState(false);
+  const timerRef = useRef<number>(0);
+
+  useEffect(() => {
+    const onActivity = () => {
+      setVisible(true);
+      window.clearTimeout(timerRef.current);
+      timerRef.current = window.setTimeout(() => setVisible(false), HIDE_DELAY_MS);
+    };
+    window.addEventListener("pointermove", onActivity, { passive: true });
+    window.addEventListener("pointerdown", onActivity, { passive: true });
+    return () => {
+      window.clearTimeout(timerRef.current);
+      window.removeEventListener("pointermove", onActivity);
+      window.removeEventListener("pointerdown", onActivity);
+    };
+  }, []);
 
   return (
     <>
       <motion.div
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-        className="group fixed right-3 top-3 z-50 flex items-center gap-1 opacity-35 transition-opacity duration-300 focus-within:opacity-100 hover:opacity-100 sm:right-5 sm:top-5"
+        animate={{ opacity: visible ? 1 : 0, y: visible ? 0 : -8 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+        className="fixed right-3 top-3 z-50 flex items-center gap-1 sm:right-5 sm:top-5"
       >
         <ThemeToggle effective={effective} />
         <OverlayButton onClick={toggleFullscreen} ariaLabel={isFullscreen ? "フルスクリーン解除" : "フルスクリーン"}>
