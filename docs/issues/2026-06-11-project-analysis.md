@@ -61,6 +61,18 @@
 - GitHub Pages デモ化は計画レビュー済み・未実装。レビュー指摘（pnpm セットアップ明示・MSW 起動失敗時の表示・line-status モックは body の lines を反映）を踏まえて実装すれば完成度高くできる
 - フック結合テスト（useSleepController の合成layer）はリファクタログの残課題のまま。純粋関数テストで主要ロジックは押さえているので優先度低
 
+## 実施記録（2026-06-11 同日完了）
+
+本ドキュメントの全課題を同日に解消した。テスト 0→250件（api 118 / web 117 / display-control 15）。
+
+- テスト全フェーズ: `e4cd55c` `97ce81d`、フック結合テスト: `2446f2a`
+- 鮮度警告・未知コード可視化・TZチェック: `b5d4902`
+- 参照データ分離（departures.ts 851→707行）: `51ad80e`
+- ICS カレンダー予定連携: `c74812b`（計画 [ics-calendar-plan](2026-06-11-ics-calendar-plan.md)）
+- GitHub Pages デモブランチ統合: `ef71950`（デモは worktree-demo-ghpage に実装済みだったものを main へ統合）
+- 設定サーバー保存: `adfe4c8`（計画 [server-settings-plan](2026-06-11-server-settings-plan.md)、ADR あり）
+- git 整理（ccusage.json ignore ほか): `17ceb8d`
+
 ## 推奨ロードマップ
 
 1. **テスト フェーズ1**（departures / timetable）— 他の改善のブロッカー解除。計画書が既にあるので着手コストは低い
