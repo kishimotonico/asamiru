@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { CreatedDisplayService } from "@asamiru/display-control";
 import { createCorrelationId, getDebugMetrics, runWithDebugContext } from "./metrics.js";
 import { createDisplayRoutes } from "./displayRoutes.js";
+import { createCalendarRoutes } from "./calendarRoutes.js";
 import { createRailRoutes } from "./railRoutes.js";
 import { registerStaticFiles } from "./staticFiles.js";
 
@@ -23,6 +24,7 @@ export function createApp(displayService: CreatedDisplayService): Hono {
   app.get("/api/debug/metrics", (c) => c.json(getDebugMetrics()));
 
   app.route("/", createRailRoutes());
+  app.route("/", createCalendarRoutes());
 
   app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));
 

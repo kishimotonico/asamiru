@@ -106,7 +106,7 @@ async function fetchText(url: string): Promise<string> {
   }
 }
 
-function parseYahooTrainInfo(
+export function parseYahooTrainInfo(
   html: string,
 ): Pick<TrainLineStatus, "status" | "level" | "note"> & { sourceName: string } {
   const $ = load(html);

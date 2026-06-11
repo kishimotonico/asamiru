@@ -1,11 +1,12 @@
 import type { CSSProperties } from "react";
 import { AsyncCardBoundary } from "./AsyncCardBoundary";
-import { CalendarCard } from "./CalendarCard";
+import { CalendarErrorCard, CalendarLoadingCard } from "./CalendarCard";
 import { ClockCard } from "./ClockCard";
 import { WeatherErrorCard, WeatherLoadingCard } from "./WeatherCard";
 import { TrainsErrorCard, TrainsLoadingCard } from "./TrainsCard";
 import { WeatherDataCard } from "./WeatherDataCard";
 import { TrainsDataCard } from "./TrainsDataCard";
+import { CalendarDataCard } from "./CalendarDataCard";
 
 type AccentStyle = CSSProperties & { "--accent": string };
 
@@ -36,7 +37,12 @@ export function Dashboard({ accent }: DashboardProps) {
           >
             <WeatherDataCard />
           </AsyncCardBoundary>
-          <CalendarCard />
+          <AsyncCardBoundary
+            fallback={<CalendarLoadingCard />}
+            errorFallback={(error, retry) => <CalendarErrorCard error={error} onRetry={retry} />}
+          >
+            <CalendarDataCard />
+          </AsyncCardBoundary>
         </div>
       </div>
     </main>

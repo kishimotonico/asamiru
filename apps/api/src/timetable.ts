@@ -3,7 +3,19 @@ import rawTimetable from "./data/timetable.json" with { type: "json" };
 
 const SERVICE_DAY_ROLLOVER_MINUTES = 4 * 60;
 
+/**
+ * timetable.json は年1回未満の手動スクレイプ更新が前提。
+ * generatedAt からの経過日数がこの値を超えたらダイヤ改定見落としの疑いとして警告する。
+ */
+export const TIMETABLE_STALE_THRESHOLD_DAYS = 300;
+
 export type DiakindType = "weekday" | "holiday";
+
+export type TimetableFreshness = {
+  generatedAt: string;
+  daysSinceGenerated: number;
+  stale: boolean;
+};
 
 type TimetableEntry = {
   time: string;
@@ -30,7 +42,7 @@ const timetable = rawTimetable as TimetableData;
  * ヶ/ケ・互換漢字・全角括弧付加表記（飛田給（味の素スタジアム前）など）の表記揺れを吸収。
  * 注意: 全角括弧除去は NFKC より先に行うこと。NFKC が （ を ( に変換してしまうため。
  */
-function normalizeKey(name: string): string {
+export function normalizeKey(name: string): string {
   return name
     .replace(/（[^）]*）/g, "")  // 全角括弧付加表記を先に除去 e.g. 飛田給（味の素スタジアム前）
     .normalize("NFKC")
@@ -48,7 +60,7 @@ export function normalizeDestination(dest: string): string {
 }
 
 /** 時刻文字列 "HH:MM" を運行日分（04:00未満 = +24h）に変換 */
-function timetableTimeToMinutes(time: string): number {
+export function timetableTimeToMinutes(time: string): number {
   const match = /^(\d{1,2}):(\d{2})$/.exec(time);
   if (!match) throw new Error(`Invalid timetable time: ${time}`);
   const minutes = Number(match[1]) * 60 + Number(match[2]);
@@ -62,6 +74,32 @@ export function selectDiakind(serviceDateStr: string): DiakindType {
   const dow = date.getDay();
   if (dow === 0 || dow === 6 || holiday_jp.isHoliday(date)) return "holiday";
   return "weekday";
+}
+
+/** timetable.json の generatedAt（ISO 8601 文字列） */
+export function getTimetableGeneratedAt(): string {
+  return timetable.generatedAt;
+}
+
+/**
+ * timetable.json の鮮度を判定する純粋関数。
+ *
+ * opentidkeio のリアルタイムデータ（traffic_info.json / dia/{id}.json）には
+ * timetable.json の revision に相当するダイヤ改定日フィールドが存在しないため、
+ * 突合チェックは実装できない。代わりに generatedAt からの経過日数で判定する。
+ */
+export function checkTimetableFreshness(generatedAt: string, now: Date): TimetableFreshness {
+  const generatedAtMs = Date.parse(generatedAt);
+  if (Number.isNaN(generatedAtMs)) {
+    throw new Error(`Invalid timetable generatedAt: ${generatedAt}`);
+  }
+
+  const daysSinceGenerated = Math.floor((now.getTime() - generatedAtMs) / (24 * 60 * 60 * 1000));
+  return {
+    generatedAt,
+    daysSinceGenerated,
+    stale: daysSinceGenerated > TIMETABLE_STALE_THRESHOLD_DAYS,
+  };
 }
 
 /**

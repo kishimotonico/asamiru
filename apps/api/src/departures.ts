@@ -2,6 +2,17 @@ import type { RailDeparturesResponse } from "@asamiru/shared";
 import { recordDebugEvent, withUpstream } from "./metrics.js";
 import { buildScheduleCandidates, selectDiakind } from "./timetable.js";
 import { errorMessage } from "./errors.js";
+import {
+  destinationLabel,
+  HACHIOJI_TAKAO_DESTINATIONS,
+  HACHIOJI_TAKAO_LINE_STATIONS,
+  SAGAMIHARA_LINE_DESTINATIONS,
+  SAGAMIHARA_LINE_STATIONS,
+  serviceLabel,
+  STATION_ORDER_BY_NAME,
+} from "./keioReference.js";
+
+export { destinationLabel, serviceLabel } from "./keioReference.js";
 
 type TrafficResponse = {
   TS?: TrafficPosition[];
@@ -69,102 +80,6 @@ const SERVICE_DAY_ROLLOVER_MINUTES = 4 * 60;
 const MAX_DIA_CHECKS_PER_DIRECTION = 10;
 const DIA_TTL_MS = 12 * 60 * 60 * 1000;
 const TRAFFIC_TTL_MS = 120 * 1000;
-const SAGAMIHARA_LINE_DESTINATIONS = new Set(["048", "054"]);
-const HACHIOJI_TAKAO_DESTINATIONS = new Set(["027", "032", "036", "037", "043"]);
-const SAGAMIHARA_LINE_STATIONS = new Set([
-  "京王多摩川",
-  "京王稲田堤",
-  "京王よみうりランド",
-  "稲城",
-  "若葉台",
-  "京王永山",
-  "京王多摩センター",
-  "京王堀之内",
-  "南大沢",
-  "多摩境",
-  "橋本",
-]);
-const HACHIOJI_TAKAO_LINE_STATIONS = new Set([
-  "西調布",
-  "飛田給",
-  "武蔵野台",
-  "多磨霊園",
-  "東府中",
-  "府中",
-  "分倍河原",
-  "中河原",
-  "聖蹟桜ヶ丘",
-  "百草園",
-  "高幡不動",
-  "南平",
-  "平山城址公園",
-  "長沼",
-  "北野",
-  "京王八王子",
-  "京王片倉",
-  "山田",
-  "めじろ台",
-  "狭間",
-  "高尾",
-  "高尾山口",
-]);
-const STATION_ORDER_BY_NAME: ReadonlyMap<string, number> = new Map(
-  [
-    ["新宿", 1],
-    ["笹塚", 2],
-    ["代田橋", 3],
-    ["明大前", 4],
-    ["下高井戸", 5],
-    ["桜上水", 6],
-    ["上北沢", 7],
-    ["八幡山", 8],
-    ["芦花公園", 9],
-    ["千歳烏山", 10],
-    ["仙川", 11],
-    ["つつじヶ丘", 12],
-    ["柴崎", 13],
-    ["国領", 14],
-    ["布田", 15],
-    ["調布", 16],
-    ["西調布", 17],
-    ["飛田給", 18],
-    ["武蔵野台", 19],
-    ["多磨霊園", 20],
-    ["東府中", 21],
-    ["府中", 22],
-    ["分倍河原", 23],
-    ["中河原", 24],
-    ["聖蹟桜ヶ丘", 25],
-    ["百草園", 26],
-    ["高幡不動", 27],
-    ["南平", 28],
-    ["平山城址公園", 29],
-    ["長沼", 30],
-    ["北野", 31],
-    ["京王八王子", 32],
-    ["新線新宿", 33],
-    ["初台", 34],
-    ["幡ヶ谷", 35],
-    ["京王片倉", 38],
-    ["山田", 39],
-    ["めじろ台", 40],
-    ["狭間", 41],
-    ["高尾", 42],
-    ["高尾山口", 43],
-    ["京王多摩川", 44],
-    ["京王稲田堤", 45],
-    ["京王よみうりランド", 46],
-    ["稲城", 47],
-    ["若葉台", 48],
-    ["京王永山", 49],
-    ["京王多摩センター", 50],
-    ["京王堀之内", 51],
-    ["南大沢", 52],
-    ["多摩境", 53],
-    ["橋本", 54],
-  ] as const,
-);
-
 const stopCache = new Map<string, StopCacheValue>();
 const diaCache = new Map<string, { value: DiaResponse; expiresAt: number }>();
 const diaInflight = new Map<string, Promise<DiaResponse>>();
@@ -172,6 +87,22 @@ let stopCacheServiceDate: string | undefined;
 let diaCacheServiceDate: string | undefined;
 let trafficCache: { value: TrafficResponse; expiresAt: number } | undefined;
 let trafficInflight: Promise<TrafficResponse> | undefined;
+
+// 未知の種別/行先コードは運行日内で同一コードにつき1回だけ debug イベントを記録する。
+const reportedUnknownCodes = new Set<string>();
+let reportedUnknownCodesServiceDate: string | undefined;
+
+export function __resetCachesForTest(): void {
+  stopCache.clear();
+  diaCache.clear();
+  diaInflight.clear();
+  stopCacheServiceDate = undefined;
+  diaCacheServiceDate = undefined;
+  trafficCache = undefined;
+  trafficInflight = undefined;
+  reportedUnknownCodes.clear();
+  reportedUnknownCodesServiceDate = undefined;
+}
 
 export type FetchDeparturesOptions = {
   boardingStation: string;
@@ -191,6 +122,7 @@ export async function fetchDepartures({
   const serviceDate = serviceDateKey(now);
   pruneStopCache(serviceDate);
   pruneDiaCache(serviceDate);
+  pruneUnknownCodeTracking(serviceDate);
 
   const boardingOrder = stationOrder(boardingStation);
   const traffic = await fetchTraffic(signal);
@@ -241,11 +173,18 @@ export async function fetchDepartures({
       continue;
     }
 
-    const dest = stop.destination || destinationLabel(train.ik_tr || train.ik);
+    const serviceCode = train.sy_tr || train.sy;
+    const kind = serviceLabel(serviceCode);
+    reportUnknownCodeIfNeeded("service", serviceCode, kind, trainId);
+
+    const destCode = train.ik_tr || train.ik;
+    reportUnknownCodeIfNeeded("destination", destCode, destinationLabel(destCode), trainId);
+    const dest = stop.destination || destinationLabel(destCode);
+
     candidates.push({
       trainId,
       direction,
-      kind: serviceLabel(train.sy_tr || train.sy),
+      kind,
       dest,
       scheduledMinutes: stop.scheduledMinutes,
       estimatedMinutes,
@@ -350,7 +289,7 @@ async function resolveStopInfo({
   return stopInfo;
 }
 
-function collectUpcomingTrains(
+export function collectUpcomingTrains(
   traffic: TrafficResponse,
   boardingStation: string,
   boardingOrder: number,
@@ -528,7 +467,7 @@ async function fetchDia(trainId: string, serviceDate: string, signal?: AbortSign
   return request;
 }
 
-function groupDepartures(candidates: TrainCandidate[], displayLimit: number): RailDeparturesResponse["departures"] {
+export function groupDepartures(candidates: TrainCandidate[], displayLimit: number): RailDeparturesResponse["departures"] {
   const grouped = new Map<string, TrainCandidate[]>();
 
   for (const candidate of candidates) {
@@ -565,12 +504,12 @@ function parseTimeToMinutes(time: string): number {
   return Number(match[1]) * 60 + Number(match[2]);
 }
 
-function parseServiceDayTimeToMinutes(time: string): number {
+export function parseServiceDayTimeToMinutes(time: string): number {
   const minutes = parseTimeToMinutes(time);
   return minutes < SERVICE_DAY_ROLLOVER_MINUTES ? minutes + 24 * 60 : minutes;
 }
 
-function parseDelay(delay: string | undefined): number {
+export function parseDelay(delay: string | undefined): number {
   if (!delay) {
     return 0;
   }
@@ -581,7 +520,7 @@ function parseDelay(delay: string | undefined): number {
   return Math.max(0, parsed);
 }
 
-function parsePositionOrder(id: string | undefined): number | undefined {
+export function parsePositionOrder(id: string | undefined): number | undefined {
   const match = /^[A-Z](\d{3})$/.exec(id ?? "");
   if (!match) {
     return undefined;
@@ -589,7 +528,7 @@ function parsePositionOrder(id: string | undefined): number | undefined {
   return Number(match[1]);
 }
 
-function distanceBeforeBoarding(positionOrder: number, boardingOrder: number, direction: string | undefined): number | undefined {
+export function distanceBeforeBoarding(positionOrder: number, boardingOrder: number, direction: string | undefined): number | undefined {
   if (direction === "1") {
     return positionOrder <= boardingOrder ? boardingOrder - positionOrder : undefined;
   }
@@ -655,7 +594,50 @@ function pruneDiaCache(serviceDate: string): void {
   diaCacheServiceDate = serviceDate;
 }
 
-function serviceDateKey(now: Date): string {
+function pruneUnknownCodeTracking(serviceDate: string): void {
+  if (reportedUnknownCodesServiceDate === serviceDate) {
+    return;
+  }
+
+  reportedUnknownCodes.clear();
+  reportedUnknownCodesServiceDate = serviceDate;
+}
+
+/**
+ * serviceLabel / destinationLabel が未知コードのフォールバック表示（種別X / 行先X）を
+ * 返した場合に debug イベントを記録する。運行日内で同一コードは1回だけ記録する。
+ */
+function reportUnknownCodeIfNeeded(
+  type: "service" | "destination",
+  code: string | undefined,
+  label: string,
+  trainId: string,
+): void {
+  if (!code) {
+    return;
+  }
+
+  const fallback = type === "service" ? `種別${code}` : `行先${code}`;
+  if (label !== fallback) {
+    return;
+  }
+
+  const dedupeKey = `${type}:${code}`;
+  if (reportedUnknownCodes.has(dedupeKey)) {
+    return;
+  }
+  reportedUnknownCodes.add(dedupeKey);
+
+  recordDebugEvent({
+    kind: "error",
+    api: DEPARTURES_API,
+    target: dedupeKey,
+    summary: `Unknown ${type} code: ${code}`,
+    detail: { type, code, label, trainId },
+  });
+}
+
+export function serviceDateKey(now: Date): string {
   const serviceDate = new Date(now);
   if (now.getHours() < SERVICE_DAY_ROLLOVER_MINUTES / 60) {
     serviceDate.setDate(serviceDate.getDate() - 1);
@@ -667,12 +649,12 @@ function serviceDateKey(now: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function currentServiceDayMinutes(now: Date): number {
+export function currentServiceDayMinutes(now: Date): number {
   const minutes = now.getHours() * 60 + now.getMinutes();
   return minutes < SERVICE_DAY_ROLLOVER_MINUTES ? minutes + 24 * 60 : minutes;
 }
 
-function isProbablyUnreachableBranch(boardingStation: string, train: TrainPosition): boolean {
+export function isProbablyUnreachableBranch(boardingStation: string, train: TrainPosition): boolean {
   const branch = stationBranch(boardingStation);
   if (branch === "common") {
     return false;
@@ -688,7 +670,7 @@ function isProbablyUnreachableBranch(boardingStation: string, train: TrainPositi
   return hasSagamiharaDestination && !hasHachiojiTakaoDestination;
 }
 
-function stationBranch(stationName: string): "common" | "sagamihara" | "hachiojiTakao" {
+export function stationBranch(stationName: string): "common" | "sagamihara" | "hachiojiTakao" {
   if (SAGAMIHARA_LINE_STATIONS.has(stationName)) {
     return "sagamihara";
   }
@@ -702,7 +684,7 @@ function destinationCodes(train: TrainPosition): string[] {
   return [train.ik_tr, train.ik].filter((code): code is string => typeof code === "string" && code.length > 0);
 }
 
-function formatMinutes(minutes: number): string {
+export function formatMinutes(minutes: number): string {
   const normalized = ((minutes % (24 * 60)) + 24 * 60) % (24 * 60);
   const hours = Math.floor(normalized / 60);
   const rest = normalized % 60;
@@ -714,7 +696,7 @@ function destinationFromDia(dia: DiaResponse): string | undefined {
   return stops?.[stops.length - 1]?.sn;
 }
 
-function directionKey(direction: string | undefined, dest: string): string {
+export function directionKey(direction: string | undefined, dest: string): string {
   if (direction === "0") {
     return "上り方面";
   }
@@ -723,62 +705,3 @@ function directionKey(direction: string | undefined, dest: string): string {
   }
   return dest ? `${dest}方面` : "方面未設定";
 }
-
-function serviceLabel(code: string | undefined): string {
-  switch (code) {
-    case "1":
-      return "特急";
-    case "2":
-      return "急行";
-    case "3":
-      return "快速";
-    case "4":
-      return "準特急";
-    case "5":
-      return "区間急行";
-    case "6":
-      return "各駅停車";
-    case "7":
-      return "回送";
-    case "9":
-      return "京王ライナー";
-    case "10":
-      return "臨時";
-    case "11":
-      return "Mt.TAKAO号";
-    default:
-      return code ? `種別${code}` : "不明";
-  }
-}
-
-function destinationLabel(code: string | undefined): string {
-  switch (code) {
-    case "001":
-      return "新宿";
-    case "027":
-      return "高幡不動";
-    case "032":
-      return "京王八王子";
-    case "036":
-      return "高幡不動";
-    case "037":
-      return "北野";
-    case "043":
-      return "高尾山口";
-    case "048":
-      return "橋本";
-    case "054":
-      return "橋本";
-    case "081":
-      return "渋谷";
-    case "097":
-      return "吉祥寺";
-    case "120":
-      return "本八幡";
-    case "301":
-      return "新線新宿";
-    default:
-      return code ? `行先${code}` : "不明";
-  }
-}
-

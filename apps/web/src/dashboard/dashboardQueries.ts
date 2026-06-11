@@ -3,12 +3,14 @@ import type { WatchedLine } from "@asamiru/shared";
 import { fetchDepartures } from "../data/departures";
 import { fetchLineStatus } from "../data/lineStatus";
 import { fetchWeather } from "../data/weather";
+import { fetchCalendarEvents } from "../data/calendarEvents";
 import type { WeatherSettings } from "../settings/weatherSettingsAtom";
 import type { TrainsSettings } from "../settings/trainsSettingsAtom";
 
 const WEATHER_INTERVAL_MS = 10 * 60 * 1000;
 const DEPARTURES_INTERVAL_MS = 90 * 1000;
 const LINE_STATUS_INTERVAL_MS = 5 * 60 * 1000;
+const CALENDAR_INTERVAL_MS = 10 * 60 * 1000;
 
 export function weatherQueryOptions(settings: WeatherSettings) {
   return queryOptions({
@@ -41,6 +43,16 @@ export function departuresQueryOptions(settings: TrainsSettings) {
       }),
     staleTime: DEPARTURES_INTERVAL_MS,
     refetchInterval: DEPARTURES_INTERVAL_MS,
+    refetchIntervalInBackground: true,
+  });
+}
+
+export function calendarEventsQueryOptions(icsUrls: string[]) {
+  return queryOptions({
+    queryKey: ["dashboard", "calendar-events", icsUrls],
+    queryFn: ({ signal }) => fetchCalendarEvents({ icsUrls, days: 2 }, { signal }),
+    staleTime: CALENDAR_INTERVAL_MS,
+    refetchInterval: CALENDAR_INTERVAL_MS,
     refetchIntervalInBackground: true,
   });
 }
