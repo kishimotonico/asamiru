@@ -1,6 +1,7 @@
 import { http, HttpResponse, bypass } from "msw";
-import type { DisplayInfoResponse, RailDeparturesResponse } from "@asamiru/shared";
+import type { CalendarEventsResponse, DisplayInfoResponse, RailDeparturesResponse } from "@asamiru/shared";
 import type { WatchedLine } from "@asamiru/shared";
+import { buildDemoCalendarEvents } from "../demo/calendarDemoData";
 import { buildDemoDepartures, buildDemoLineStatus } from "../demo/railDemoData";
 
 // ─── ハンドラー定義 ────────────────────────────────────────────────────────
@@ -30,6 +31,14 @@ export const handlers = [
     type LineStatusRequest = { lines?: WatchedLine[] };
     const body = (await request.json().catch(() => ({}))) as LineStatusRequest;
     const response = buildDemoLineStatus(body.lines ?? []);
+    await new Promise((r) => setTimeout(r, 200));
+    return HttpResponse.json(response);
+  }),
+
+  // カレンダー予定: icsUrls の中身は問わず、架空の予定（今日2件・明日1件）を返す
+  // API クライアント（data/calendarEvents.ts）は `{ icsUrls, days }` で POST する
+  http.post("*/api/calendar/events", async () => {
+    const response: CalendarEventsResponse = buildDemoCalendarEvents();
     await new Promise((r) => setTimeout(r, 200));
     return HttpResponse.json(response);
   }),
