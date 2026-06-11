@@ -1,6 +1,6 @@
 import type { ForecastDay, WeatherData, WeatherIconKind } from "../dashboard/types";
 
-type OpenMeteoResponse = {
+export type OpenMeteoResponse = {
   hourly?: {
     time?: string[];
     temperature_2m?: number[];
@@ -44,7 +44,7 @@ export async function fetchWeather({ lat = 35.6895, lon = 139.6917, locationName
   return normalizeWeather(raw, locationName);
 }
 
-function normalizeWeather(raw: OpenMeteoResponse, locationName: string): WeatherData {
+export function normalizeWeather(raw: OpenMeteoResponse, locationName: string): WeatherData {
   const hourly = raw.hourly;
   const daily = raw.daily;
 
@@ -98,7 +98,7 @@ function normalizeWeather(raw: OpenMeteoResponse, locationName: string): Weather
   };
 }
 
-function normalizeForecastDay(daily: Required<OpenMeteoResponse>["daily"], index: number): ForecastDay {
+export function normalizeForecastDay(daily: Required<OpenMeteoResponse>["daily"], index: number): ForecastDay {
   if (!daily.time?.[index]) {
     throw new Error("Open-Meteo daily response has fewer forecast days than expected");
   }
@@ -140,7 +140,7 @@ function weekdayText(date: Date): string {
   return ["日", "月", "火", "水", "木", "金", "土"][date.getDay()] ?? "";
 }
 
-function weatherIcon(code: number): WeatherIconKind {
+export function weatherIcon(code: number): WeatherIconKind {
   if (code === 0) {
     return "sun";
   }
@@ -159,7 +159,7 @@ function weatherIcon(code: number): WeatherIconKind {
   return "cloud";
 }
 
-function weatherLabel(code: number): string {
+export function weatherLabel(code: number): string {
   if (code === 0) {
     return "晴れ";
   }

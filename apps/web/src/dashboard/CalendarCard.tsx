@@ -4,7 +4,7 @@ const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
 type Day = { date: number; isToday: boolean } | null;
 
-function buildMonth(today: Date) {
+export function buildMonth(today: Date) {
   const year = today.getFullYear();
   const month = today.getMonth();
   const firstWeekday = new Date(year, month, 1).getDay();
