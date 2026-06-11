@@ -17,6 +17,7 @@ import { LineStatusSettingsSection } from "./LineStatusSettingsSection";
 import { SleepSettingsSection } from "./SleepSettingsSection";
 import { DisplayStatusSection } from "./DisplayStatusSection";
 import { ThemeSettingsSection } from "./ThemeSettingsSection";
+import { CalendarSettingsSection } from "./CalendarSettingsSection";
 
 type SettingsModalProps = {
   open: boolean;
@@ -61,6 +62,9 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
               <TabPanel className="space-y-7 outline-none">
                 <Section title="天気">
                   <WeatherSettingsSection />
+                </Section>
+                <Section title="カレンダー">
+                  <CalendarSettingsSection />
                 </Section>
                 <Section title="電車">
                   <TrainsSettingsSection />

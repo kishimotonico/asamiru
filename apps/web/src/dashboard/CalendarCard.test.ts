@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMonth } from "./CalendarCard";
+import { buildCalendarAgenda, buildMonth } from "./CalendarCard";
 
 describe("buildMonth", () => {
   it("月初が日曜の月は先頭の空白セルが0個になる（2026年2月）", () => {
@@ -53,5 +53,64 @@ describe("buildMonth", () => {
 
     const todays = days.filter((d) => d?.isToday);
     expect(todays).toEqual([{ date: 15, isToday: true }]);
+  });
+});
+
+describe("buildCalendarAgenda", () => {
+  const now = new Date("2026-06-11T08:00:00+09:00");
+
+  it("今日と明日の時刻付き予定を JST で振り分ける", () => {
+    const agenda = buildCalendarAgenda(
+      [
+        {
+          title: "今日の予定",
+          start: "2026-06-11T09:30:00.000+09:00",
+          end: "2026-06-11T10:00:00.000+09:00",
+          allDay: false,
+        },
+        {
+          title: "明日の予定",
+          start: "2026-06-12T14:00:00.000+09:00",
+          end: "2026-06-12T15:00:00.000+09:00",
+          allDay: false,
+        },
+      ],
+      now,
+    );
+
+    expect(agenda[0]?.events).toEqual([expect.objectContaining({ title: "今日の予定", time: "09:30" })]);
+    expect(agenda[1]?.events).toEqual([expect.objectContaining({ title: "明日の予定", time: "14:00" })]);
+  });
+
+  it("終日予定には時刻を付けない", () => {
+    const agenda = buildCalendarAgenda(
+      [
+        {
+          title: "終日予定",
+          start: "2026-06-11T00:00:00.000+09:00",
+          end: "2026-06-12T00:00:00.000+09:00",
+          allDay: true,
+        },
+      ],
+      now,
+    );
+
+    expect(agenda[0]?.events[0]).toEqual(expect.objectContaining({ title: "終日予定", time: undefined }));
+  });
+
+  it("今日より前と明日より後の予定を除外する", () => {
+    const agenda = buildCalendarAgenda(
+      [
+        {
+          title: "明後日の予定",
+          start: "2026-06-13T09:00:00.000+09:00",
+          end: "2026-06-13T10:00:00.000+09:00",
+          allDay: false,
+        },
+      ],
+      now,
+    );
+
+    expect(agenda.flatMap((day) => day.events)).toEqual([]);
   });
 });

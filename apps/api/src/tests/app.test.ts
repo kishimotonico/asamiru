@@ -19,6 +19,16 @@ describe("createApp の合成", () => {
     expect(Array.isArray(body.events)).toBe(true);
   });
 
+  it("POST /api/calendar/events はカレンダールートへ到達する", async () => {
+    const res = await app.request("/api/calendar/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ icsUrls: [] }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ events: [], checkedAt: expect.any(String) });
+  });
+
   it("未知の /api/* は 404（catch-all が静的配信より先）", async () => {
     const res = await app.request("/api/does-not-exist");
     expect(res.status).toBe(404);

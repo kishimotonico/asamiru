@@ -1,6 +1,7 @@
 // ─── デバッグ計測 ───────────────────────────────────────────────────
 
 export const API_DEBUG_LABELS: Record<string, string> = {
+  "calendar/events": "カレンダー",
   "rail/line-status": "運行情報",
   "rail/departures": "発車情報",
   system: "システム",
