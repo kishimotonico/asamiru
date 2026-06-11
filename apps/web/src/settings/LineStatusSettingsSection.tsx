@@ -1,6 +1,6 @@
 import { useAtom } from "jotai";
 import { useState } from "react";
-import { MASTER_TRAIN_LINES } from "@asamiru/shared";
+import { RAIL_CATALOG } from "./catalog";
 import type { WatchedLine } from "@asamiru/shared";
 import { trainsSettingsAtom } from "./trainsSettingsAtom";
 import { ActionButton, SettingField, TextInput } from "./components/FormControls";
@@ -30,7 +30,7 @@ export function LineStatusSettingsSection() {
   }
 
   const customLines = trains.watchedLines.filter(
-    (l) => !MASTER_TRAIN_LINES.some((m) => m.yahooUrl === l.yahooUrl),
+    (l) => !RAIL_CATALOG.lines.some((m) => m.yahooUrl === l.yahooUrl),
   );
 
   return (
@@ -41,7 +41,7 @@ export function LineStatusSettingsSection() {
         wide
       >
         <LineMultiSelect
-          options={MASTER_TRAIN_LINES}
+          options={RAIL_CATALOG.lines}
           value={trains.watchedLines}
           onChange={(watchedLines) => setTrains((prev) => ({ ...prev, watchedLines }))}
         />

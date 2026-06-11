@@ -1,5 +1,5 @@
 import { useAtom } from "jotai";
-import { trainsSettingsAtom, KEIO_STATIONS } from "./trainsSettingsAtom";
+import { trainsSettingsAtom, BOARDING_STATIONS } from "./trainsSettingsAtom";
 import { SettingField, SelectInput, TextInput } from "./components/FormControls";
 
 export function TrainsSettingsSection() {
@@ -13,7 +13,7 @@ export function TrainsSettingsSection() {
           onChange={(e) => setTrains((prev) => ({ ...prev, boardingStation: e.target.value }))}
           className="w-full"
         >
-          {KEIO_STATIONS.map((station) => (
+          {BOARDING_STATIONS.map((station) => (
             <option key={station} value={station}>{station}</option>
           ))}
         </SelectInput>

@@ -40,8 +40,8 @@ export async function fetchWeather({ lat = 35.6895, lon = 139.6917, locationName
     throw new Error(`Open-Meteo returned ${response.status}`);
   }
 
-  const raw = (await response.json()) as OpenMeteoResponse;
-  return normalizeWeather(raw, locationName);
+  const raw = (await response.json()) as OpenMeteoResponse & { _location?: string };
+  return normalizeWeather(raw, raw._location ?? locationName);
 }
 
 export function normalizeWeather(raw: OpenMeteoResponse, locationName: string): WeatherData {
