@@ -3,6 +3,7 @@
 export const API_DEBUG_LABELS: Record<string, string> = {
   "rail/line-status": "運行情報",
   "rail/departures": "発車情報",
+  system: "システム",
 };
 
 export type ApiDebugKind =

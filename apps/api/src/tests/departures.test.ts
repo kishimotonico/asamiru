@@ -42,6 +42,7 @@ import {
   serviceLabel,
   stationBranch,
 } from "../departures.js";
+import * as metrics from "../metrics.js";
 
 beforeEach(() => {
   __resetCachesForTest();
@@ -378,5 +379,66 @@ describe("fetchDepartures", () => {
     ]);
     expect(result.departures["下り方面"].some(({ dest }) => dest === "重複候補")).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("未知の種別/行先コードを運行日内で1回だけ debug イベントとして記録する", async () => {
+    const traffic = {
+      TS: [
+        {
+          id: "K054",
+          sn: "K",
+          ps: [
+            { tr: "UP-1", ki: "0", sy: "99", ik: "999" },
+            { tr: "UP-2", ki: "0", sy: "99", ik: "999" },
+          ],
+        },
+      ],
+    };
+    const diaByTrainId: Record<string, unknown> = {
+      "UP-1": { dy: [{ sn: "橋本", ht: "10:10" }] },
+      "UP-2": { dy: [{ sn: "橋本", ht: "10:20" }] },
+    };
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("/traffic_info.json")) {
+        return Response.json(traffic);
+      }
+      const trainId = decodeURIComponent(url.split("/").at(-1)?.replace(/\.json$/, "") ?? "");
+      const dia = diaByTrainId[trainId];
+      if (dia) {
+        return Response.json(dia);
+      }
+      return new Response("not found", { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const recordSpy = vi.spyOn(metrics, "recordDebugEvent");
+
+    const result = await fetchDepartures({
+      boardingStation: "橋本",
+      displayCount: 2,
+      now: new Date(2026, 5, 11, 10, 0),
+    });
+
+    expect(result.departures["上り方面"]).toEqual([
+      expect.objectContaining({ kind: "種別99", dest: "橋本" }),
+      expect.objectContaining({ kind: "種別99", dest: "橋本" }),
+    ]);
+
+    const unknownEvents = recordSpy.mock.calls
+      .map(([event]) => event)
+      .filter((event) => event.summary.startsWith("Unknown "));
+    expect(unknownEvents).toEqual([
+      expect.objectContaining({
+        kind: "error",
+        summary: "Unknown service code: 99",
+        detail: expect.objectContaining({ type: "service", code: "99" }),
+      }),
+      expect.objectContaining({
+        kind: "error",
+        summary: "Unknown destination code: 999",
+        detail: expect.objectContaining({ type: "destination", code: "999" }),
+      }),
+    ]);
   });
 });

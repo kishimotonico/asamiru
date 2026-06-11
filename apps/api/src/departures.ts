@@ -173,6 +173,10 @@ let diaCacheServiceDate: string | undefined;
 let trafficCache: { value: TrafficResponse; expiresAt: number } | undefined;
 let trafficInflight: Promise<TrafficResponse> | undefined;
 
+// 未知の種別/行先コードは運行日内で同一コードにつき1回だけ debug イベントを記録する。
+const reportedUnknownCodes = new Set<string>();
+let reportedUnknownCodesServiceDate: string | undefined;
+
 export function __resetCachesForTest(): void {
   stopCache.clear();
   diaCache.clear();
@@ -181,6 +185,8 @@ export function __resetCachesForTest(): void {
   diaCacheServiceDate = undefined;
   trafficCache = undefined;
   trafficInflight = undefined;
+  reportedUnknownCodes.clear();
+  reportedUnknownCodesServiceDate = undefined;
 }
 
 export type FetchDeparturesOptions = {
@@ -201,6 +207,7 @@ export async function fetchDepartures({
   const serviceDate = serviceDateKey(now);
   pruneStopCache(serviceDate);
   pruneDiaCache(serviceDate);
+  pruneUnknownCodeTracking(serviceDate);
 
   const boardingOrder = stationOrder(boardingStation);
   const traffic = await fetchTraffic(signal);
@@ -251,11 +258,18 @@ export async function fetchDepartures({
       continue;
     }
 
-    const dest = stop.destination || destinationLabel(train.ik_tr || train.ik);
+    const serviceCode = train.sy_tr || train.sy;
+    const kind = serviceLabel(serviceCode);
+    reportUnknownCodeIfNeeded("service", serviceCode, kind, trainId);
+
+    const destCode = train.ik_tr || train.ik;
+    reportUnknownCodeIfNeeded("destination", destCode, destinationLabel(destCode), trainId);
+    const dest = stop.destination || destinationLabel(destCode);
+
     candidates.push({
       trainId,
       direction,
-      kind: serviceLabel(train.sy_tr || train.sy),
+      kind,
       dest,
       scheduledMinutes: stop.scheduledMinutes,
       estimatedMinutes,
@@ -663,6 +677,49 @@ function pruneDiaCache(serviceDate: string): void {
     }
   }
   diaCacheServiceDate = serviceDate;
+}
+
+function pruneUnknownCodeTracking(serviceDate: string): void {
+  if (reportedUnknownCodesServiceDate === serviceDate) {
+    return;
+  }
+
+  reportedUnknownCodes.clear();
+  reportedUnknownCodesServiceDate = serviceDate;
+}
+
+/**
+ * serviceLabel / destinationLabel が未知コードのフォールバック表示（種別X / 行先X）を
+ * 返した場合に debug イベントを記録する。運行日内で同一コードは1回だけ記録する。
+ */
+function reportUnknownCodeIfNeeded(
+  type: "service" | "destination",
+  code: string | undefined,
+  label: string,
+  trainId: string,
+): void {
+  if (!code) {
+    return;
+  }
+
+  const fallback = type === "service" ? `種別${code}` : `行先${code}`;
+  if (label !== fallback) {
+    return;
+  }
+
+  const dedupeKey = `${type}:${code}`;
+  if (reportedUnknownCodes.has(dedupeKey)) {
+    return;
+  }
+  reportedUnknownCodes.add(dedupeKey);
+
+  recordDebugEvent({
+    kind: "error",
+    api: DEPARTURES_API,
+    target: dedupeKey,
+    summary: `Unknown ${type} code: ${code}`,
+    detail: { type, code, label, trainId },
+  });
 }
 
 export function serviceDateKey(now: Date): string {

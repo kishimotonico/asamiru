@@ -24,9 +24,12 @@ vi.mock("../data/timetable.json", () => ({
 
 import {
   buildScheduleCandidates,
+  checkTimetableFreshness,
+  getTimetableGeneratedAt,
   normalizeDestination,
   normalizeKey,
   selectDiakind,
+  TIMETABLE_STALE_THRESHOLD_DAYS,
   timetableTimeToMinutes,
 } from "../timetable.js";
 
@@ -114,5 +117,46 @@ describe("buildScheduleCandidates", () => {
   it("駅または方向が見つからなければ空配列を返す", () => {
     expect(buildScheduleCandidates("存在しない駅", "上り方面", "weekday", 0, new Set())).toEqual([]);
     expect(buildScheduleCandidates("飛田給", "下り方面", "weekday", 0, new Set())).toEqual([]);
+  });
+});
+
+describe("getTimetableGeneratedAt", () => {
+  it("timetable.json の generatedAt を返す", () => {
+    expect(getTimetableGeneratedAt()).toBe("2026-06-11T00:00:00.000Z");
+  });
+});
+
+describe("checkTimetableFreshness", () => {
+  const generatedAt = "2026-06-11T00:00:00.000Z";
+
+  it(`generatedAt から ${TIMETABLE_STALE_THRESHOLD_DAYS} 日以内なら stale: false`, () => {
+    const now = new Date("2026-06-12T00:00:00.000Z");
+    expect(checkTimetableFreshness(generatedAt, now)).toEqual({
+      generatedAt,
+      daysSinceGenerated: 1,
+      stale: false,
+    });
+  });
+
+  it(`generatedAt からちょうど ${TIMETABLE_STALE_THRESHOLD_DAYS} 日後は stale: false`, () => {
+    const now = new Date(Date.parse(generatedAt) + TIMETABLE_STALE_THRESHOLD_DAYS * 24 * 60 * 60 * 1000);
+    expect(checkTimetableFreshness(generatedAt, now)).toEqual({
+      generatedAt,
+      daysSinceGenerated: TIMETABLE_STALE_THRESHOLD_DAYS,
+      stale: false,
+    });
+  });
+
+  it(`generatedAt から ${TIMETABLE_STALE_THRESHOLD_DAYS} 日を超えると stale: true`, () => {
+    const now = new Date(Date.parse(generatedAt) + (TIMETABLE_STALE_THRESHOLD_DAYS + 1) * 24 * 60 * 60 * 1000);
+    expect(checkTimetableFreshness(generatedAt, now)).toEqual({
+      generatedAt,
+      daysSinceGenerated: TIMETABLE_STALE_THRESHOLD_DAYS + 1,
+      stale: true,
+    });
+  });
+
+  it("不正な generatedAt は throw する", () => {
+    expect(() => checkTimetableFreshness("not-a-date", new Date())).toThrow(/Invalid timetable generatedAt/);
   });
 });
