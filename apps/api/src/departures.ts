@@ -173,6 +173,16 @@ let diaCacheServiceDate: string | undefined;
 let trafficCache: { value: TrafficResponse; expiresAt: number } | undefined;
 let trafficInflight: Promise<TrafficResponse> | undefined;
 
+export function __resetCachesForTest(): void {
+  stopCache.clear();
+  diaCache.clear();
+  diaInflight.clear();
+  stopCacheServiceDate = undefined;
+  diaCacheServiceDate = undefined;
+  trafficCache = undefined;
+  trafficInflight = undefined;
+}
+
 export type FetchDeparturesOptions = {
   boardingStation: string;
   displayCount: number;
@@ -350,7 +360,7 @@ async function resolveStopInfo({
   return stopInfo;
 }
 
-function collectUpcomingTrains(
+export function collectUpcomingTrains(
   traffic: TrafficResponse,
   boardingStation: string,
   boardingOrder: number,
@@ -528,7 +538,7 @@ async function fetchDia(trainId: string, serviceDate: string, signal?: AbortSign
   return request;
 }
 
-function groupDepartures(candidates: TrainCandidate[], displayLimit: number): RailDeparturesResponse["departures"] {
+export function groupDepartures(candidates: TrainCandidate[], displayLimit: number): RailDeparturesResponse["departures"] {
   const grouped = new Map<string, TrainCandidate[]>();
 
   for (const candidate of candidates) {
@@ -565,12 +575,12 @@ function parseTimeToMinutes(time: string): number {
   return Number(match[1]) * 60 + Number(match[2]);
 }
 
-function parseServiceDayTimeToMinutes(time: string): number {
+export function parseServiceDayTimeToMinutes(time: string): number {
   const minutes = parseTimeToMinutes(time);
   return minutes < SERVICE_DAY_ROLLOVER_MINUTES ? minutes + 24 * 60 : minutes;
 }
 
-function parseDelay(delay: string | undefined): number {
+export function parseDelay(delay: string | undefined): number {
   if (!delay) {
     return 0;
   }
@@ -581,7 +591,7 @@ function parseDelay(delay: string | undefined): number {
   return Math.max(0, parsed);
 }
 
-function parsePositionOrder(id: string | undefined): number | undefined {
+export function parsePositionOrder(id: string | undefined): number | undefined {
   const match = /^[A-Z](\d{3})$/.exec(id ?? "");
   if (!match) {
     return undefined;
@@ -589,7 +599,7 @@ function parsePositionOrder(id: string | undefined): number | undefined {
   return Number(match[1]);
 }
 
-function distanceBeforeBoarding(positionOrder: number, boardingOrder: number, direction: string | undefined): number | undefined {
+export function distanceBeforeBoarding(positionOrder: number, boardingOrder: number, direction: string | undefined): number | undefined {
   if (direction === "1") {
     return positionOrder <= boardingOrder ? boardingOrder - positionOrder : undefined;
   }
@@ -655,7 +665,7 @@ function pruneDiaCache(serviceDate: string): void {
   diaCacheServiceDate = serviceDate;
 }
 
-function serviceDateKey(now: Date): string {
+export function serviceDateKey(now: Date): string {
   const serviceDate = new Date(now);
   if (now.getHours() < SERVICE_DAY_ROLLOVER_MINUTES / 60) {
     serviceDate.setDate(serviceDate.getDate() - 1);
@@ -667,12 +677,12 @@ function serviceDateKey(now: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function currentServiceDayMinutes(now: Date): number {
+export function currentServiceDayMinutes(now: Date): number {
   const minutes = now.getHours() * 60 + now.getMinutes();
   return minutes < SERVICE_DAY_ROLLOVER_MINUTES ? minutes + 24 * 60 : minutes;
 }
 
-function isProbablyUnreachableBranch(boardingStation: string, train: TrainPosition): boolean {
+export function isProbablyUnreachableBranch(boardingStation: string, train: TrainPosition): boolean {
   const branch = stationBranch(boardingStation);
   if (branch === "common") {
     return false;
@@ -688,7 +698,7 @@ function isProbablyUnreachableBranch(boardingStation: string, train: TrainPositi
   return hasSagamiharaDestination && !hasHachiojiTakaoDestination;
 }
 
-function stationBranch(stationName: string): "common" | "sagamihara" | "hachiojiTakao" {
+export function stationBranch(stationName: string): "common" | "sagamihara" | "hachiojiTakao" {
   if (SAGAMIHARA_LINE_STATIONS.has(stationName)) {
     return "sagamihara";
   }
@@ -702,7 +712,7 @@ function destinationCodes(train: TrainPosition): string[] {
   return [train.ik_tr, train.ik].filter((code): code is string => typeof code === "string" && code.length > 0);
 }
 
-function formatMinutes(minutes: number): string {
+export function formatMinutes(minutes: number): string {
   const normalized = ((minutes % (24 * 60)) + 24 * 60) % (24 * 60);
   const hours = Math.floor(normalized / 60);
   const rest = normalized % 60;
@@ -714,7 +724,7 @@ function destinationFromDia(dia: DiaResponse): string | undefined {
   return stops?.[stops.length - 1]?.sn;
 }
 
-function directionKey(direction: string | undefined, dest: string): string {
+export function directionKey(direction: string | undefined, dest: string): string {
   if (direction === "0") {
     return "上り方面";
   }
@@ -724,7 +734,7 @@ function directionKey(direction: string | undefined, dest: string): string {
   return dest ? `${dest}方面` : "方面未設定";
 }
 
-function serviceLabel(code: string | undefined): string {
+export function serviceLabel(code: string | undefined): string {
   switch (code) {
     case "1":
       return "特急";
@@ -751,7 +761,7 @@ function serviceLabel(code: string | undefined): string {
   }
 }
 
-function destinationLabel(code: string | undefined): string {
+export function destinationLabel(code: string | undefined): string {
   switch (code) {
     case "001":
       return "新宿";
@@ -781,4 +791,3 @@ function destinationLabel(code: string | undefined): string {
       return code ? `行先${code}` : "不明";
   }
 }
-

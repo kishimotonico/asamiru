@@ -1,6 +1,24 @@
 # テスト基盤導入と毎日使う画面ロジックのテスト追加（TODO）
 
-ステータス: 未着手（実用性優先のため保留）
+ステータス: 全フェーズ完了（2026-06-11）
+
+## 2026-06-11 実施記録
+
+フェーズ1「発車案内の中核」を実装した。フェーズ2/3（運行情報パーサー・天気・カレンダー・mergedStorage）も同日に別作業で実装済み（コミット `97ce81d`、計53件）。以下はフェーズ1の記録。
+
+- `apps/api/src/tests/departures.test.ts`: 純粋関数と `fetchDepartures` 統合テストを42件追加
+- `apps/api/src/tests/timetable.test.ts`: `holiday_jp` 実体と固定時刻表モックを使うテストを12件追加
+- `apps/api/src/departures.ts`: 対象関数の export と `__resetCachesForTest` を追加
+- `apps/api/src/timetable.ts`: `normalizeKey` / `timetableTimeToMinutes` の export を追加
+- `pnpm --filter api test`: 92件成功
+- `pnpm --filter api build`: 成功
+- `pnpm test`: 成功
+
+当初計画からの変更点:
+
+- Vitest 基盤は実装済みだったため、依存関係・設定・スクリプト・tsconfig は変更していない
+- テスト配置は現行慣習に合わせて `apps/api/src/tests/` 配下とした
+- JSON import attributes は現行 Vitest で解釈できたため、実装側の import 方法は変更していない
 
 ## 背景
 

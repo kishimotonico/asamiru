@@ -30,7 +30,7 @@ const timetable = rawTimetable as TimetableData;
  * ヶ/ケ・互換漢字・全角括弧付加表記（飛田給（味の素スタジアム前）など）の表記揺れを吸収。
  * 注意: 全角括弧除去は NFKC より先に行うこと。NFKC が （ を ( に変換してしまうため。
  */
-function normalizeKey(name: string): string {
+export function normalizeKey(name: string): string {
   return name
     .replace(/（[^）]*）/g, "")  // 全角括弧付加表記を先に除去 e.g. 飛田給（味の素スタジアム前）
     .normalize("NFKC")
@@ -48,7 +48,7 @@ export function normalizeDestination(dest: string): string {
 }
 
 /** 時刻文字列 "HH:MM" を運行日分（04:00未満 = +24h）に変換 */
-function timetableTimeToMinutes(time: string): number {
+export function timetableTimeToMinutes(time: string): number {
   const match = /^(\d{1,2}):(\d{2})$/.exec(time);
   if (!match) throw new Error(`Invalid timetable time: ${time}`);
   const minutes = Number(match[1]) * 60 + Number(match[2]);
