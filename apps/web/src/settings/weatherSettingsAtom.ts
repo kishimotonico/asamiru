@@ -1,5 +1,5 @@
 import { atomWithStorage } from "jotai/utils";
-import { mergedStorage } from "./mergedStorage";
+import { serverSettingsStorage } from "./serverSettingsStorage";
 
 export type WeatherSettings = {
   lat: number;
@@ -16,6 +16,6 @@ const DEFAULT_WEATHER_SETTINGS: WeatherSettings = {
 export const weatherSettingsAtom = atomWithStorage<WeatherSettings>(
   "asamiru-weather-settings",
   DEFAULT_WEATHER_SETTINGS,
-  mergedStorage(DEFAULT_WEATHER_SETTINGS),
+  serverSettingsStorage(DEFAULT_WEATHER_SETTINGS),
   { getOnInit: true },
 );

@@ -36,6 +36,7 @@ pnpm start   # API を起動（apps/web/dist も配信）
 
 - `PORT`: 待ち受けポート（既定 `8787`）。
 - `ASAMIRU_WEB_DIST`: 配信する Web ビルドの場所を変えたいときに指定。未指定なら `apps/web/dist` を使う。
+- `ASAMIRU_DATA_DIR`: 設定ファイルを保存するディレクトリ。未指定ならカレントディレクトリ基準の `./data` を使う。
 
 `VITE_*` はビルド時に埋め込まれる。
 
@@ -61,12 +62,16 @@ ASAMIRU_DISPLAY_ENABLED=true ASAMIRU_DDC_BUS=10 pnpm start
 
 ## 設定
 
-表示対象の設定はブラウザの **localStorage**（jotai の atomWithStorage）で管理する。画面右上の歯車アイコン → 設定モーダルから変更できる。
+表示対象の設定は API サーバーの `ASAMIRU_DATA_DIR/settings.json` を権威として保存する。ブラウザの **localStorage**（jotai の atomWithStorage）は起動時・操作時の同期キャッシュとして使う。画面右上の歯車アイコン → 設定モーダルから変更できる。
+
+設定は起動時に **GET** `/api/settings` で全量取得し、変更後は1秒の debounce を経て **PUT** `/api/settings` で全量保存する。設定取得に失敗した場合は localStorage だけで起動せず、エラーを表示する。
 
 設定可能な項目:
 - 天気取得地点（緯度・経度）
 - 乗車駅・監視路線・表示本数
 - スリープスケジュール（開始・終了時刻）
+- カレンダー（ICS URL）
+- テーマ
 - モニター連動の状態表示
 
 `.env.local` に `VITE_*` を書く必要はない。

@@ -35,3 +35,18 @@
 - 全量 PUT なので「最後に書いた者勝ち」。複数クライアント同時編集は要件外（個人用1台）
 - settings.json には ICS URL が入る。ログに内容を出さない
 - `.env.example` / README の更新も忘れない
+
+## 実装記録
+
+- API に JSON ファイル store と GET/PUT ルートを追加した。
+- Web に同期 server settings storage を追加し、全設定 atom を差し替えた。
+- 起動時 GET、失敗画面、デモ MSW のメモリ保持 GET/PUT を追加した。
+- store、routes、サーバー優先マージ、localStorage キャッシュ、debounce PUT のテストを追加した。
+- ADR、README、`.env.example`、`.gitignore`、`ARCHITECTURE.md` を更新した。
+
+### 検証結果
+
+- `pnpm test`: 成功
+- `pnpm build`: 成功
+- `VITE_DEMO_MODE=true pnpm --filter web build`: 成功
+- `VITE_DEMO_MODE=true pnpm --filter web test`: 成功（117 tests）

@@ -23,11 +23,11 @@ packages/
 
 ### データ取得と設定
 
-サーバー状態は TanStack Query、ユーザー設定は jotai の `atomWithStorage`（localStorage 永続化）で管理する。両者を `queryKey` に設定値を含めて連動させ、設定変更で自動再フェッチさせる。設定の理由は [ADR: Jotai 採用](docs/adr/2026-05-30-jotai-for-module-settings.md) を参照。
+サーバー状態は TanStack Query、ユーザー設定は jotai の `atomWithStorage` で管理する。設定の永続化は API サーバーの JSON ファイルを権威とし、localStorage は同期キャッシュとして使う。両者を `queryKey` に設定値を含めて連動させ、設定変更で自動再フェッチさせる。設定の理由は [ADR: Jotai 採用](docs/adr/2026-05-30-jotai-for-module-settings.md) と [ADR: 設定のサーバー JSON 永続化](docs/adr/2026-06-11-server-settings-persistence.md) を参照。
 
 - `data/*` … fetch を担う薄い関数群（`apiEndpoint` で相対パスを組み立てる）。
 - `dashboard/dashboardQueries.ts` … `queryOptions` を集約。staleTime / refetchInterval をここで一元管理。
-- `settings/*Atom.ts` … ドメインごとの設定 atom。`mergedStorage` で旧保存値とデフォルトをマージし、フィールド追加に強くする。
+- `settings/*Atom.ts` … ドメインごとの設定 atom。サーバー設定、localStorage、デフォルトをマージし、フィールド追加に強くする。
 
 ### コンポーネント
 

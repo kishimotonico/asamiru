@@ -4,9 +4,22 @@ import type { WatchedLine } from "@asamiru/shared";
 import { buildDemoCalendarEvents } from "../demo/calendarDemoData";
 import { buildDemoDepartures, buildDemoLineStatus } from "../demo/railDemoData";
 
+let settings: Record<string, unknown> = {};
+
 // ─── ハンドラー定義 ────────────────────────────────────────────────────────
 
 export const handlers = [
+  http.get("*/api/settings", () => HttpResponse.json(settings)),
+
+  http.put("*/api/settings", async ({ request }) => {
+    const body: unknown = await request.json().catch(() => undefined);
+    if (typeof body !== "object" || body === null || Array.isArray(body)) {
+      return HttpResponse.json({ error: "Request body must be a JSON object" }, { status: 400 });
+    }
+    settings = body as Record<string, unknown>;
+    return HttpResponse.json(settings);
+  }),
+
   // 次発情報: boardingStation を尊重してそのままエコー、displayCount のみ反映
   http.post("*/api/rail/departures", async ({ request }) => {
     type DepartureRequest = { boardingStation?: string; displayCount?: number };

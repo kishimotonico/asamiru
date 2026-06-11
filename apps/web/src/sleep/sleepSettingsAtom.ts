@@ -1,5 +1,5 @@
 import { atomWithStorage } from "jotai/utils";
-import { mergedStorage } from "../settings/mergedStorage";
+import { serverSettingsStorage } from "../settings/serverSettingsStorage";
 
 /** 起きてる時間帯（awake window）。days は 0(日)-6(土)、start/end は "HH:MM"。 */
 export type SleepWindow = {
@@ -27,7 +27,7 @@ export const DEFAULT_SLEEP_SETTINGS: SleepSettings = {
 export const sleepSettingsAtom = atomWithStorage<SleepSettings>(
   "asamiru-sleep-settings",
   DEFAULT_SLEEP_SETTINGS,
-  mergedStorage(DEFAULT_SLEEP_SETTINGS),
+  serverSettingsStorage(DEFAULT_SLEEP_SETTINGS),
   { getOnInit: true },
 );
 
