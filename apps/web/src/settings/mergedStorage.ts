@@ -7,8 +7,10 @@ type SyncStorage<T> = {
 /**
  * localStorage からの復元値をデフォルト値とシャローマージするストレージ。
  * フィールドを追加した際も、古い保存値で undefined にならない。
+ *
+ * @param _defaultValue - 実行時には使わず、呼び出し側で `T` を推論させるためだけの引数
  */
-export function mergedStorage<T extends object>(defaultValue: T): SyncStorage<T> {
+export function mergedStorage<T extends object>(_defaultValue: T): SyncStorage<T> {
   return {
     getItem(key, initialValue) {
       try {

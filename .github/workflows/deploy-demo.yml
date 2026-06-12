@@ -39,6 +39,12 @@ jobs:
       - name: Build shared package
         run: pnpm --filter shared build
 
+      - name: Build display-control package
+        run: pnpm --filter @asamiru/display-control build
+
+      - name: Test
+        run: pnpm test
+
       - name: Build web (demo mode)
         run: pnpm --filter web build
         env:

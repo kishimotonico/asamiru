@@ -103,6 +103,7 @@ function parseArgs(args: string[]): Options {
       case "-h":
         console.log(usage());
         process.exit(0);
+        break;
       default:
         throw new Error(`Unknown option: ${arg}`);
     }

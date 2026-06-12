@@ -140,8 +140,7 @@ export function useDisplaySync({ desiredSleeping, onExternalOn, onExternalOff }:
       cancelled.value = true;
       cleanupRef.fn();
     };
-    // マウント時だけ実行
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // マウント時だけ実行（ref経由で最新値を読むため依存配列は空でよい）
   }, []);
 
   const requestPower = (next: DesiredDisplayPower) => {

@@ -11,6 +11,9 @@ describe("cn", () => {
   });
 
   it("条件付きクラスを展開する", () => {
+    // cn の利用パターン（三項演算等での条件付きクラス）を模した固定値での検証のため、
+    // 定数の真偽値を意図的に使用する。
+    // eslint-disable-next-line no-constant-binary-expression
     expect(cn("base", true && "on", false && "off")).toBe("base on");
   });
 

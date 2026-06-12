@@ -10,11 +10,16 @@
     "dev:web": "pnpm --filter web dev",
     "build": "pnpm --filter shared build && pnpm --filter @asamiru/display-control build && pnpm --filter api build && pnpm --filter web build",
     "test": "pnpm --filter @asamiru/display-control --filter api --filter web test",
+    "lint": "eslint .",
     "start": "pnpm --filter api start",
     "preview": "pnpm --filter web preview"
   },
-  "dependencies": {},
   "devDependencies": {
-    "typescript": "^6.0.3"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.4.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.6.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.0"
   }
 }

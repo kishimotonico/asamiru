@@ -130,7 +130,7 @@ export function useSleepIntent(settings: SleepSettings): UseSleepIntent {
       ? nextScheduleWakeStartAfter(new Date(now), settings.windows)
       : null;
     dispatch({ type: "resync", now, awakeMs, releaseAt });
-  }, [settings]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [settings, awakeMs]);
 
   const actions = useMemo<SleepIntentActions>(
     () => ({
@@ -144,7 +144,7 @@ export function useSleepIntent(settings: SleepSettings): UseSleepIntent {
       },
     }),
     // awakeMs / settings の変化で action クロージャを再生成
-    [awakeMs, settings], // eslint-disable-line react-hooks/exhaustive-deps
+    [awakeMs, settings],
   );
 
   return { now: state.now, desiredSleeping, actions };

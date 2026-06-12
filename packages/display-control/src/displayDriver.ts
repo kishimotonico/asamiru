@@ -1,7 +1,7 @@
 import type { DisplayConnection, DisplayPower } from "@asamiru/shared";
 
 export type ConnectionResult =
-  | { connection: "connected" | "disconnected" | "unknown"; error: null }
+  | { connection: DisplayConnection; error: null }
   | { connection: "unknown"; error: string };
 
 export type PowerResult =
