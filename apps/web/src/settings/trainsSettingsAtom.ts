@@ -22,13 +22,13 @@ export const BOARDING_STATIONS = RAIL_CATALOG.stations;
  * 本番設定が残っているとデモへ実在駅・路線が混入しうる。
  * key を分けて本番／デモのストレージを完全分離する。
  */
-const STORAGE_KEY =
+export const TRAINS_SETTINGS_STORAGE_KEY =
   import.meta.env.VITE_DEMO_MODE === "true"
     ? "asamiru-trains-settings-demo"
     : "asamiru-trains-settings";
 
 export const trainsSettingsAtom = atomWithStorage(
-  STORAGE_KEY,
+  TRAINS_SETTINGS_STORAGE_KEY,
   RAIL_CATALOG.defaults,
   mergedStorage(RAIL_CATALOG.defaults),
   { getOnInit: true },

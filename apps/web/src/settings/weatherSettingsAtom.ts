@@ -13,8 +13,10 @@ const DEFAULT_WEATHER_SETTINGS: WeatherSettings = {
   locationName: "東京",
 };
 
+export const WEATHER_SETTINGS_STORAGE_KEY = "asamiru-weather-settings";
+
 export const weatherSettingsAtom = atomWithStorage<WeatherSettings>(
-  "asamiru-weather-settings",
+  WEATHER_SETTINGS_STORAGE_KEY,
   DEFAULT_WEATHER_SETTINGS,
   mergedStorage(DEFAULT_WEATHER_SETTINGS),
   { getOnInit: true },

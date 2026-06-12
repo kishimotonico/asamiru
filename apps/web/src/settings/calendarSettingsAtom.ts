@@ -26,7 +26,7 @@ const DEMO_CALENDAR_SETTINGS: CalendarSettings = {
  * （またはその逆でデモの予定が表示されなくなる）。
  * key を分けて本番／デモのストレージを完全分離する。
  */
-const STORAGE_KEY =
+export const CALENDAR_SETTINGS_STORAGE_KEY =
   import.meta.env.VITE_DEMO_MODE === "true"
     ? "asamiru-calendar-settings-demo"
     : "asamiru-calendar-settings";
@@ -35,7 +35,7 @@ const DEFAULTS =
   import.meta.env.VITE_DEMO_MODE === "true" ? DEMO_CALENDAR_SETTINGS : DEFAULT_CALENDAR_SETTINGS;
 
 export const calendarSettingsAtom = atomWithStorage<CalendarSettings>(
-  STORAGE_KEY,
+  CALENDAR_SETTINGS_STORAGE_KEY,
   DEFAULTS,
   mergedStorage(DEFAULTS),
   { getOnInit: true },

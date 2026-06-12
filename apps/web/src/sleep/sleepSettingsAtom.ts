@@ -24,8 +24,10 @@ export const DEFAULT_SLEEP_SETTINGS: SleepSettings = {
   manualWakeDurationMin: 15,
 };
 
+export const SLEEP_SETTINGS_STORAGE_KEY = "asamiru-sleep-settings";
+
 export const sleepSettingsAtom = atomWithStorage<SleepSettings>(
-  "asamiru-sleep-settings",
+  SLEEP_SETTINGS_STORAGE_KEY,
   DEFAULT_SLEEP_SETTINGS,
   mergedStorage(DEFAULT_SLEEP_SETTINGS),
   { getOnInit: true },

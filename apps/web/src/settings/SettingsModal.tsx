@@ -18,6 +18,7 @@ import { SleepSettingsSection } from "./SleepSettingsSection";
 import { DisplayStatusSection } from "./DisplayStatusSection";
 import { ThemeSettingsSection } from "./ThemeSettingsSection";
 import { CalendarSettingsSection } from "./CalendarSettingsSection";
+import { BackupSettingsSection } from "./BackupSettingsSection";
 
 type SettingsModalProps = {
   open: boolean;
@@ -83,6 +84,9 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
                 </Section>
                 <Section title="テーマ">
                   <ThemeSettingsSection />
+                </Section>
+                <Section title="バックアップ">
+                  <BackupSettingsSection />
                 </Section>
               </TabPanel>
             </TabPanels>
