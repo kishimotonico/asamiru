@@ -1,5 +1,6 @@
 import { atomWithStorage } from "jotai/utils";
 import type { WatchedLine } from "@asamiru/shared";
+import { hasOwn, isNumber, isRecord } from "../lib/guards";
 import { RAIL_CATALOG } from "./catalog";
 import type { TrainsSettings } from "./catalog";
 import { mergedStorage } from "./mergedStorage";
@@ -52,16 +53,4 @@ function isWatchedLine(value: unknown): value is WatchedLine {
     typeof value.name === "string" &&
     typeof value.yahooUrl === "string"
   );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function hasOwn(value: object, key: PropertyKey): boolean {
-  return Object.prototype.hasOwnProperty.call(value, key);
-}
-
-function isNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
 }

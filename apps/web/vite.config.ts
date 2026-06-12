@@ -2,14 +2,14 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 import process from "process";
-import { railCatalogAlias } from "./catalog-alias";
+import { settingsCatalogAlias } from "./catalog-alias";
 
 export default defineConfig({
   envDir: "../..",
   base: process.env.VITE_BASE_PATH ?? "/",
   plugins: [react(), tailwindcss()],
   resolve: {
-    alias: railCatalogAlias(__dirname),
+    alias: settingsCatalogAlias(__dirname),
   },
   server: {
     port: process.env.PORT ? parseInt(process.env.PORT) : 5173,

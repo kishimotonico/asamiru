@@ -1,4 +1,4 @@
-import { http, HttpResponse, bypass } from "msw";
+import { http, HttpResponse } from "msw";
 import type { CalendarEventsResponse, DisplayInfoResponse, RailDeparturesResponse } from "@asamiru/shared";
 import type { WatchedLine } from "@asamiru/shared";
 import { buildDemoCalendarEvents } from "../demo/calendarDemoData";
@@ -43,13 +43,8 @@ export const handlers = [
     return HttpResponse.json(response);
   }),
 
-  // 天気: 実 Open-Meteo API にパススルーし、場所名だけ "キヴォトス" に上書き
-  // fetchWeather は _location フィールドがあれば locationName より優先する
-  http.get("https://api.open-meteo.com/v1/forecast", async ({ request }) => {
-    const response = await fetch(bypass(request));
-    const data = (await response.json()) as Record<string, unknown>;
-    return HttpResponse.json({ ...data, _location: "キヴォトス" });
-  }),
+  // 天気はハンドラー不要: 実 Open-Meteo API へ素通しし（onUnhandledRequest: "bypass"）、
+  // デモの地名（キヴォトス）は設定カタログ（settings/catalog）のデフォルト値で供給する
 
   // モニター連動: enabled:false で connectWithRetry をリトライなし終端させる
   http.get("*/api/system/display", () => {

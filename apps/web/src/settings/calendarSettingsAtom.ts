@@ -1,4 +1,5 @@
 import { atomWithStorage } from "jotai/utils";
+import { hasOwn, isRecord } from "../lib/guards";
 import { mergedStorage } from "./mergedStorage";
 
 export type CalendarSettings = {
@@ -49,11 +50,3 @@ export const calendarSettingsAtom = atomWithStorage<CalendarSettings>(
   mergedStorage(DEFAULTS),
   { getOnInit: true },
 );
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function hasOwn(value: object, key: PropertyKey): boolean {
-  return Object.prototype.hasOwnProperty.call(value, key);
-}

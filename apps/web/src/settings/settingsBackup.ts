@@ -1,3 +1,4 @@
+import { hasOwn, isRecord } from "../lib/guards";
 import { isSleepSettings, SLEEP_SETTINGS_STORAGE_KEY } from "../sleep/sleepSettingsAtom";
 import { isThemePreference, THEME_STORAGE_KEY } from "../theme/themeAtom";
 import { isCalendarSettings, CALENDAR_SETTINGS_STORAGE_KEY } from "./calendarSettingsAtom";
@@ -123,12 +124,4 @@ function validateSettings(settings: Readonly<Record<string, unknown>>): Settings
   }
 
   return validatedSettings;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function hasOwn(value: object, key: PropertyKey): boolean {
-  return Object.prototype.hasOwnProperty.call(value, key);
 }

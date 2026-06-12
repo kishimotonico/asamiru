@@ -1,5 +1,5 @@
 import { MASTER_TRAIN_LINES } from "@asamiru/shared";
-import type { RailCatalog } from "./types";
+import type { RailCatalog, WeatherCatalog } from "./types";
 
 // ─── 本番鉄道カタログ ──────────────────────────────────────────────────────
 
@@ -26,5 +26,15 @@ export const RAIL_CATALOG: RailCatalog = {
       { name: "総武線", yahooUrl: "https://transit.yahoo.co.jp/diainfo/40/0" },
       { name: "多摩都市モノレール線", yahooUrl: "https://transit.yahoo.co.jp/diainfo/156/0" },
     ],
+  },
+};
+
+// ─── 本番天気カタログ ──────────────────────────────────────────────────────
+
+export const WEATHER_CATALOG: WeatherCatalog = {
+  defaults: {
+    lat: 35.6895,
+    lon: 139.6917,
+    locationName: "東京",
   },
 };

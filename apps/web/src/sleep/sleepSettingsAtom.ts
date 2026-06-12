@@ -1,4 +1,5 @@
 import { atomWithStorage } from "jotai/utils";
+import { hasOwn, isNumber, isRecord } from "../lib/guards";
 import { mergedStorage } from "../settings/mergedStorage";
 
 /** 起きてる時間帯（awake window）。days は 0(日)-6(土)、start/end は "HH:MM"。 */
@@ -53,18 +54,6 @@ function isSleepWindow(value: unknown): value is SleepWindow {
     typeof value.start === "string" &&
     typeof value.end === "string"
   );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function hasOwn(value: object, key: PropertyKey): boolean {
-  return Object.prototype.hasOwnProperty.call(value, key);
-}
-
-function isNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
 }
 
 /** "HH:MM" を 0-1439 の分に変換。不正値は NaN。 */

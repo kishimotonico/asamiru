@@ -1,19 +1,21 @@
 import { atomWithStorage } from "jotai/utils";
+import { hasOwn, isNumber, isRecord } from "../lib/guards";
+import { WEATHER_CATALOG } from "./catalog";
+import type { WeatherSettings } from "./catalog";
 import { mergedStorage } from "./mergedStorage";
 
-export type WeatherSettings = {
-  lat: number;
-  lon: number;
-  locationName: string;
-};
+export type { WeatherSettings } from "./catalog";
 
-const DEFAULT_WEATHER_SETTINGS: WeatherSettings = {
-  lat: 35.6895,
-  lon: 139.6917,
-  locationName: "東京",
-};
-
-export const WEATHER_SETTINGS_STORAGE_KEY = "asamiru-weather-settings";
+/**
+ * localStorage key はビルドモードで分離する。
+ * mergedStorage は保存値をデフォルトより優先するため、同一オリジンに
+ * 本番設定が残っているとデモへ実在の地名・座標が混入しうる。
+ * key を分けて本番／デモのストレージを完全分離する。
+ */
+export const WEATHER_SETTINGS_STORAGE_KEY =
+  import.meta.env.VITE_DEMO_MODE === "true"
+    ? "asamiru-weather-settings-demo"
+    : "asamiru-weather-settings";
 
 export function isWeatherSettings(value: unknown): value is Partial<WeatherSettings> {
   if (!isRecord(value)) return false;
@@ -27,19 +29,7 @@ export function isWeatherSettings(value: unknown): value is Partial<WeatherSetti
 
 export const weatherSettingsAtom = atomWithStorage<WeatherSettings>(
   WEATHER_SETTINGS_STORAGE_KEY,
-  DEFAULT_WEATHER_SETTINGS,
-  mergedStorage(DEFAULT_WEATHER_SETTINGS),
+  WEATHER_CATALOG.defaults,
+  mergedStorage(WEATHER_CATALOG.defaults),
   { getOnInit: true },
 );
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function hasOwn(value: object, key: PropertyKey): boolean {
-  return Object.prototype.hasOwnProperty.call(value, key);
-}
-
-function isNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
-}

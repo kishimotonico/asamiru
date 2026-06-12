@@ -1,9 +1,9 @@
 import { defineConfig } from "vitest/config";
-import { railCatalogAlias } from "./catalog-alias";
+import { settingsCatalogAlias } from "./catalog-alias";
 
 export default defineConfig({
   resolve: {
-    alias: railCatalogAlias(__dirname),
+    alias: settingsCatalogAlias(__dirname),
   },
   test: {
     environment: "node",

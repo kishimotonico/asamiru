@@ -20,13 +20,13 @@ const WEATHER_ENDPOINT = "https://api.open-meteo.com/v1/forecast";
 const HOURLY_HOURS = new Set([6, 9, 12, 15, 18, 21]);
 
 type FetchWeatherOptions = {
-  lat?: number;
-  lon?: number;
-  locationName?: string;
+  lat: number;
+  lon: number;
+  locationName: string;
   signal?: AbortSignal;
 };
 
-export async function fetchWeather({ lat = 35.6895, lon = 139.6917, locationName = "東京", signal }: FetchWeatherOptions = {}): Promise<WeatherData> {
+export async function fetchWeather({ lat, lon, locationName, signal }: FetchWeatherOptions): Promise<WeatherData> {
   const url = new URL(WEATHER_ENDPOINT);
 
   url.searchParams.set("latitude", String(lat));
@@ -40,8 +40,8 @@ export async function fetchWeather({ lat = 35.6895, lon = 139.6917, locationName
     throw new Error(`Open-Meteo returned ${response.status}`);
   }
 
-  const raw = (await response.json()) as OpenMeteoResponse & { _location?: string };
-  return normalizeWeather(raw, raw._location ?? locationName);
+  const raw = (await response.json()) as OpenMeteoResponse;
+  return normalizeWeather(raw, locationName);
 }
 
 export function normalizeWeather(raw: OpenMeteoResponse, locationName: string): WeatherData {

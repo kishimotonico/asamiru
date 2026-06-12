@@ -8,6 +8,12 @@ export type TrainsSettings = {
   watchedLines: WatchedLine[];
 };
 
+export type WeatherSettings = {
+  lat: number;
+  lon: number;
+  locationName: string;
+};
+
 // ─── 鉄道カタログ ──────────────────────────────────────────────────────────
 
 /**
@@ -22,4 +28,15 @@ export type RailCatalog = {
   lines: WatchedLine[];
   /** 初期設定（乗車駅・表示本数・既定の監視路線） */
   defaults: TrainsSettings;
+};
+
+// ─── 天気カタログ ──────────────────────────────────────────────────────────
+
+/**
+ * 天気の初期設定。鉄道カタログと同様に、本番／デモで
+ * VITE_DEMO_MODE フラグによってビルド時に切り替わる。
+ */
+export type WeatherCatalog = {
+  /** 初期設定（座標・表示用の地名） */
+  defaults: WeatherSettings;
 };
