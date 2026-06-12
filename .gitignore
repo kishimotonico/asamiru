@@ -2,8 +2,6 @@ node_modules/
 dist/
 *.tsbuildinfo
 .env.local
-/data/
-/apps/api/data/
 
 .DS_Store
 

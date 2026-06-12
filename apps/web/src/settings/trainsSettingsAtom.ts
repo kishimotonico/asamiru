@@ -1,7 +1,7 @@
 import { atomWithStorage } from "jotai/utils";
 import type { WatchedLine } from "@asamiru/shared";
 import { RAIL_CATALOG } from "./catalog";
-import { serverSettingsStorage } from "./serverSettingsStorage";
+import { mergedStorage } from "./mergedStorage";
 
 export type { WatchedLine };
 export type { TrainsSettings } from "./catalog";
@@ -18,7 +18,7 @@ export const BOARDING_STATIONS = RAIL_CATALOG.stations;
 
 /**
  * localStorage key はビルドモードで分離する。
- * serverSettingsStorage は保存値をデフォルトより優先するため、同一オリジンに
+ * mergedStorage は保存値をデフォルトより優先するため、同一オリジンに
  * 本番設定が残っているとデモへ実在駅・路線が混入しうる。
  * key を分けて本番／デモのストレージを完全分離する。
  */
@@ -30,6 +30,6 @@ const STORAGE_KEY =
 export const trainsSettingsAtom = atomWithStorage(
   STORAGE_KEY,
   RAIL_CATALOG.defaults,
-  serverSettingsStorage(RAIL_CATALOG.defaults),
+  mergedStorage(RAIL_CATALOG.defaults),
   { getOnInit: true },
 );

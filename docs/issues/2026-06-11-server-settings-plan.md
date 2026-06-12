@@ -1,5 +1,7 @@
 # 設定のサーバー保存 実装計画
 
+> **2026-06-12 revert 済み**: オーナー判断で取りやめ。複数デバイスで異なる設定を持てる価値と「サーバーの役割を増やさない」方針を優先し、バックアップは設定のエクスポート/インポートで対応する。[ADR: クライアント設定＋エクスポート](../adr/2026-06-12-client-settings-with-export.md) を参照。以下は当時の計画の記録。
+
 [プロジェクト分析](2026-06-11-project-analysis.md) の課題6。kiosk のブラウザプロファイルが飛ぶと localStorage の設定（天気地点・乗車駅・監視路線・スリープスケジュール・ICS URL）が消える問題への対応。
 
 ## 方針
@@ -35,18 +37,3 @@
 - 全量 PUT なので「最後に書いた者勝ち」。複数クライアント同時編集は要件外（個人用1台）
 - settings.json には ICS URL が入る。ログに内容を出さない
 - `.env.example` / README の更新も忘れない
-
-## 実装記録
-
-- API に JSON ファイル store と GET/PUT ルートを追加した。
-- Web に同期 server settings storage を追加し、全設定 atom を差し替えた。
-- 起動時 GET、失敗画面、デモ MSW のメモリ保持 GET/PUT を追加した。
-- store、routes、サーバー優先マージ、localStorage キャッシュ、debounce PUT のテストを追加した。
-- ADR、README、`.env.example`、`.gitignore`、`ARCHITECTURE.md` を更新した。
-
-### 検証結果
-
-- `pnpm test`: 成功
-- `pnpm build`: 成功
-- `VITE_DEMO_MODE=true pnpm --filter web build`: 成功
-- `VITE_DEMO_MODE=true pnpm --filter web test`: 成功（117 tests）

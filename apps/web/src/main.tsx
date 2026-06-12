@@ -1,9 +1,9 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { QueryClientProvider } from "@tanstack/react-query";
+import App from "./App";
 import "./index.css";
 import { queryClient } from "./queryClient";
-import { loadServerSettings } from "./settings/serverSettingsStorage";
 
 const rootEl = document.getElementById("root")!;
 
@@ -25,33 +25,21 @@ async function enableMocking(): Promise<void> {
   });
 }
 
-async function start(): Promise<void> {
-  try {
-    await enableMocking();
-  } catch (error) {
+enableMocking()
+  .then(() => {
+    // worker.start() が完了してから render するので、
+    // React Query が最初の fetch を走らせる前に必ず SW が有効化されている。
+    ReactDOM.createRoot(rootEl).render(
+      <React.StrictMode>
+        <QueryClientProvider client={queryClient}>
+          <App />
+        </QueryClientProvider>
+      </React.StrictMode>,
+    );
+  })
+  .catch((err) => {
     // デモで SW が起動できなければデータが無くカードが全滅するため、
     // 原因が見える最小限のエラー画面を出す（実 API へは落とさない）。
     rootEl.textContent = "デモの初期化に失敗しました（Service Worker を起動できません）";
-    throw error;
-  }
-
-  try {
-    await loadServerSettings();
-  } catch (error) {
-    rootEl.textContent = "設定をサーバーから読み込めませんでした";
-    throw error;
-  }
-
-  // atomWithStorage(getOnInit) がサーバースナップショット初期化後に評価されるよう、
-  // App と設定 atom のモジュールは GET 完了後に読み込む。
-  const { default: App } = await import("./App");
-  ReactDOM.createRoot(rootEl).render(
-    <React.StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <App />
-      </QueryClientProvider>
-    </React.StrictMode>,
-  );
-}
-
-void start();
+    throw err;
+  });

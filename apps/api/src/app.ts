@@ -4,7 +4,6 @@ import { createCorrelationId, getDebugMetrics, runWithDebugContext } from "./met
 import { createDisplayRoutes } from "./displayRoutes.js";
 import { createCalendarRoutes } from "./calendarRoutes.js";
 import { createRailRoutes } from "./railRoutes.js";
-import { createSettingsRoutes } from "./settingsRoutes.js";
 import { registerStaticFiles } from "./staticFiles.js";
 
 /** アプリの合成ルート。ミドルウェア → 各ルート → 静的配信の順。API の 404 catch-all は全 API ルートの後・静的配信の前に置く。 */
@@ -26,7 +25,6 @@ export function createApp(displayService: CreatedDisplayService): Hono {
 
   app.route("/", createRailRoutes());
   app.route("/", createCalendarRoutes());
-  app.route("/", createSettingsRoutes());
 
   app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));
 
