@@ -63,6 +63,14 @@ export function recordDebugEvent(input: DebugEventInput): ApiDebugEvent {
   return event;
 }
 
+/**
+ * 上流 API リクエストを計測つきで実行する。
+ *
+ * 失敗（例外）時は upstream_request と error の2イベントを記録する。これは意図的な設計で、
+ * upstream_request は「試行の記録」（上流呼び出し回数のカウント）、error は「問題の記録」という
+ * 役割分担になっている。呼び出し側が !ok レスポンス時に upstream_request（withUpstream 内で記録済み）
+ * に加えて error を記録するパターンとも整合する。
+ */
 export async function withUpstream(
   api: string,
   target: string,

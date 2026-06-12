@@ -1,11 +1,16 @@
 import type { CalendarEventsRequest, CalendarEventsResponse } from "@asamiru/shared";
 import { Hono } from "hono";
-import { CALENDAR_EVENTS_API, fetchCalendarEvents } from "./calendar.js";
-import { errorMessage } from "./errors.js";
+import { CALENDAR_EVENTS_API, clearCalendarCache, fetchCalendarEvents } from "./calendar.js";
+import { BadRequestError, errorMessage } from "./errors.js";
 import { recordDebugEvent } from "./metrics.js";
 
 export function createCalendarRoutes(): Hono {
   const app = new Hono();
+
+  app.delete("/api/calendar/cache", (c) => {
+    const cleared = clearCalendarCache();
+    return c.json({ ok: true, cleared });
+  });
 
   app.post("/api/calendar/events", async (c) => {
     let body: CalendarEventsRequest;
@@ -34,7 +39,6 @@ export function createCalendarRoutes(): Hono {
 
     try {
       const response = await fetchCalendarEvents({ icsUrls, days: body.days });
-      c.header("Cache-Control", "private, max-age=600");
       return c.json(response);
     } catch (error) {
       const message = errorMessage(error);
@@ -45,19 +49,10 @@ export function createCalendarRoutes(): Hono {
         summary: "Calendar events request failed",
         detail: { calendarCount: icsUrls.length, message },
       });
-      const status = isRequestError(message) ? 400 : 502;
+      const status = error instanceof BadRequestError ? 400 : 502;
       return c.json({ error: message }, status);
     }
   });
 
   return app;
-}
-
-function isRequestError(message: string): boolean {
-  return (
-    message === "Invalid ICS URL" ||
-    message === "ICS URL must use https" ||
-    message === "icsUrls must be an array of strings" ||
-    message.startsWith("days must be an integer")
-  );
 }

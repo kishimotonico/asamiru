@@ -1,6 +1,7 @@
 import { load } from "cheerio";
 import type { TrainLineStatus, WatchedLine } from "@asamiru/shared";
 import { recordDebugEvent, withUpstream } from "./metrics.js";
+import { createTtlCache } from "./ttlCache.js";
 
 const LINE_STATUS_API = "rail/line-status";
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -9,49 +10,42 @@ const USER_AGENT = "asamiru/0.1 personal dashboard";
 
 export { LINE_STATUS_API };
 
-const cache = new Map<string, { value: TrainLineStatus; expiresAt: number }>();
+const cache = createTtlCache<TrainLineStatus>({
+  api: LINE_STATUS_API,
+  cacheName: "line-status",
+  ttlMs: CACHE_TTL_MS,
+});
 
 /** 路線運行情報キャッシュを破棄し、件数を返す。 */
 export function clearLineStatusCache(): number {
-  const count = cache.size;
-  cache.clear();
-  return count;
+  return cache.clear();
 }
 
 /** Yahoo!路線情報から1路線の運行状況を取得する（TTLキャッシュつき）。 */
 export async function fetchLineStatus(line: WatchedLine): Promise<TrainLineStatus> {
   const sourceUrl = normalizeYahooTransitInfoUrl(line.yahooUrl);
-  const cached = cache.get(sourceUrl);
-  if (cached && cached.expiresAt > Date.now()) {
-    recordDebugEvent({
-      kind: "cache_hit",
-      api: LINE_STATUS_API,
-      target: sourceUrl,
-      summary: "Line status served from cache",
-      detail: { lineName: line.name, cache: "line-status" },
-    });
-    return cached.value;
-  }
-
-  recordDebugEvent({
-    kind: "cache_miss",
-    api: LINE_STATUS_API,
-    target: sourceUrl,
-    summary: "Line status cache miss",
-    detail: { lineName: line.name, cache: "line-status" },
-  });
-  const html = await fetchText(sourceUrl);
-  const parsed = parseYahooTrainInfo(html);
-  const status: TrainLineStatus = {
-    name: parsed.sourceName,
+  return cache.getOrFetch(
     sourceUrl,
-    checkedAt: new Date().toISOString(),
-    status: parsed.status,
-    level: parsed.level,
-    note: parsed.note,
-  };
-  cache.set(sourceUrl, { value: status, expiresAt: Date.now() + CACHE_TTL_MS });
-  return status;
+    {
+      target: sourceUrl,
+      hitSummary: "Line status served from cache",
+      missSummary: "Line status cache miss",
+      inflightSummary: "Line status request joined in-flight fetch",
+      detail: { lineName: line.name },
+    },
+    async () => {
+      const html = await fetchText(sourceUrl);
+      const parsed = parseYahooTrainInfo(html);
+      return {
+        name: parsed.sourceName,
+        sourceUrl,
+        checkedAt: new Date().toISOString(),
+        status: parsed.status,
+        level: parsed.level,
+        note: parsed.note,
+      };
+    },
+  );
 }
 
 /** Yahoo!路線情報の diainfo URL を検証・正規化する。不正なら例外。 */

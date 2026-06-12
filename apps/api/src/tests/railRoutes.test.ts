@@ -28,11 +28,20 @@ describe("createRailRoutes", () => {
     expect(await res.json()).toEqual({ error: "boardingStation is required" });
   });
 
+  it.each(["/api/rail/line-status", "/api/rail/departures"])("POST %s は不正な JSON で 400", async (path) => {
+    const res = await app.request(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{not json",
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Request body must be valid JSON" });
+  });
+
   it("POST /api/rail/line-status は空配列ならネットワークアクセスせず空応答を返す", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     const res = await post("/api/rail/line-status", { lines: [] });
     expect(res.status).toBe(200);
-    expect(res.headers.get("Cache-Control")).toBe("public, max-age=300");
     const body = (await res.json()) as { lines: unknown[]; source: string };
     expect(body.lines).toEqual([]);
     expect(body.source).toBe("yahoo-transit");

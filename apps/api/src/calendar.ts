@@ -1,6 +1,8 @@
 import type { CalendarEvent, CalendarEventsRequest, CalendarEventsResponse } from "@asamiru/shared";
 import ical from "node-ical";
+import { BadRequestError } from "./errors.js";
 import { recordDebugEvent, withUpstream } from "./metrics.js";
+import { createTtlCache } from "./ttlCache.js";
 
 export const CALENDAR_EVENTS_API = "calendar/events";
 
@@ -10,11 +12,6 @@ const DEFAULT_DAYS = 7;
 const MAX_DAYS = 14;
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const USER_AGENT = "asamiru/0.1 personal dashboard";
-
-type CachedCalendar = {
-  icsText: string;
-  expiresAt: number;
-};
 
 type CalendarDate = Date & {
   dateOnly?: boolean;
@@ -37,12 +34,14 @@ type ExpandedEvent = {
   isFullDay?: unknown;
 };
 
-const cache = new Map<string, CachedCalendar>();
+const cache = createTtlCache<string>({
+  api: CALENDAR_EVENTS_API,
+  cacheName: "ics-calendar",
+  ttlMs: CACHE_TTL_MS,
+});
 
 export function clearCalendarCache(): number {
-  const count = cache.size;
-  cache.clear();
-  return count;
+  return cache.clear();
 }
 
 export function normalizeCalendarUrl(rawUrl: string): string {
@@ -50,11 +49,11 @@ export function normalizeCalendarUrl(rawUrl: string): string {
   try {
     url = new URL(rawUrl);
   } catch {
-    throw new Error("Invalid ICS URL");
+    throw new BadRequestError("Invalid ICS URL");
   }
 
   if (url.protocol !== "https:") {
-    throw new Error("ICS URL must use https");
+    throw new BadRequestError("ICS URL must use https");
   }
   return url.toString();
 }
@@ -64,7 +63,7 @@ export function normalizeCalendarDays(days: number | undefined): number {
     return DEFAULT_DAYS;
   }
   if (!Number.isInteger(days) || days < 1 || days > MAX_DAYS) {
-    throw new Error(`days must be an integer between 1 and ${MAX_DAYS}`);
+    throw new BadRequestError(`days must be an integer between 1 and ${MAX_DAYS}`);
   }
   return days;
 }
@@ -74,7 +73,7 @@ export async function fetchCalendarEvents(
   now = new Date(),
 ): Promise<CalendarEventsResponse> {
   if (!Array.isArray(request.icsUrls) || request.icsUrls.some((url) => typeof url !== "string")) {
-    throw new Error("icsUrls must be an array of strings");
+    throw new BadRequestError("icsUrls must be an array of strings");
   }
 
   const days = normalizeCalendarDays(request.days);
@@ -128,65 +127,55 @@ export function parseCalendarEvents(
 
 async function fetchCalendarText(url: string): Promise<string> {
   const host = new URL(url).hostname;
-  const cached = cache.get(url);
-  if (cached && cached.expiresAt > Date.now()) {
-    recordDebugEvent({
-      kind: "cache_hit",
-      api: CALENDAR_EVENTS_API,
+  return cache.getOrFetch(
+    url,
+    {
       target: host,
-      summary: "Calendar served from cache",
-      detail: { host, cache: "ics-calendar" },
-    });
-    return cached.icsText;
-  }
-
-  recordDebugEvent({
-    kind: "cache_miss",
-    api: CALENDAR_EVENTS_API,
-    target: host,
-    summary: "Calendar cache miss",
-    detail: { host, cache: "ics-calendar" },
-  });
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const response = await withUpstream(
-      CALENDAR_EVENTS_API,
-      host,
-      async () => {
-        try {
-          return await fetch(url, {
-            signal: controller.signal,
-            headers: {
-              "User-Agent": USER_AGENT,
-              Accept: "text/calendar,text/plain;q=0.9",
-            },
+      hitSummary: "Calendar served from cache",
+      missSummary: "Calendar cache miss",
+      inflightSummary: "Calendar request joined in-flight fetch",
+      detail: { host },
+    },
+    async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      try {
+        const response = await withUpstream(
+          CALENDAR_EVENTS_API,
+          host,
+          async () => {
+            try {
+              return await fetch(url, {
+                signal: controller.signal,
+                headers: {
+                  "User-Agent": USER_AGENT,
+                  Accept: "text/calendar,text/plain;q=0.9",
+                },
+              });
+            } catch {
+              throw new Error(`Calendar upstream ${host} request failed`);
+            }
+          },
+          { provider: "ics", host },
+        );
+        if (!response.ok) {
+          recordDebugEvent({
+            kind: "error",
+            api: CALENDAR_EVENTS_API,
+            target: host,
+            summary: "Calendar upstream returned an error status",
+            status: response.status,
+            detail: { provider: "ics", host },
           });
-        } catch {
-          throw new Error(`Calendar upstream ${host} request failed`);
+          throw new Error(`Calendar upstream ${host} returned ${response.status}`);
         }
-      },
-      { provider: "ics", host },
-    );
-    if (!response.ok) {
-      recordDebugEvent({
-        kind: "error",
-        api: CALENDAR_EVENTS_API,
-        target: host,
-        summary: "Calendar upstream returned an error status",
-        status: response.status,
-        detail: { provider: "ics", host },
-      });
-      throw new Error(`Calendar upstream ${host} returned ${response.status}`);
-    }
 
-    const icsText = await response.text();
-    cache.set(url, { icsText, expiresAt: Date.now() + CACHE_TTL_MS });
-    return icsText;
-  } finally {
-    clearTimeout(timeoutId);
-  }
+        return await response.text();
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    },
+  );
 }
 
 function normalizeParsedEvent(event: ExpandedEvent): CalendarEvent {

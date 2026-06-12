@@ -1,7 +1,8 @@
 import type { RailDeparturesResponse } from "@asamiru/shared";
 import { recordDebugEvent, withUpstream } from "./metrics.js";
-import { buildScheduleCandidates, selectDiakind } from "./timetable.js";
+import { buildScheduleCandidates, selectDiakind, type TrainCandidate } from "./timetable.js";
 import { errorMessage } from "./errors.js";
+import { createTtlCache } from "./ttlCache.js";
 import {
   destinationLabel,
   HACHIOJI_TAKAO_DESTINATIONS,
@@ -44,18 +45,6 @@ type DiaStop = {
   ht?: string;
 };
 
-type TrainCandidate = {
-  trainId: string;
-  direction: string;
-  kind: string;
-  dest: string;
-  scheduledMinutes: number;
-  estimatedMinutes: number;
-  delay: number;
-  /** データソース。補完候補は "schedule" */
-  source: "realtime" | "schedule";
-};
-
 type PositionedTrain = {
   train: TrainPosition;
   trainId: string;
@@ -81,12 +70,18 @@ const MAX_DIA_CHECKS_PER_DIRECTION = 10;
 const DIA_TTL_MS = 12 * 60 * 60 * 1000;
 const TRAFFIC_TTL_MS = 120 * 1000;
 const stopCache = new Map<string, StopCacheValue>();
-const diaCache = new Map<string, { value: DiaResponse; expiresAt: number }>();
-const diaInflight = new Map<string, Promise<DiaResponse>>();
+const trafficCache = createTtlCache<TrafficResponse>({
+  api: DEPARTURES_API,
+  cacheName: "traffic",
+  ttlMs: TRAFFIC_TTL_MS,
+});
+const diaCache = createTtlCache<DiaResponse>({
+  api: DEPARTURES_API,
+  cacheName: "dia",
+  ttlMs: DIA_TTL_MS,
+});
 let stopCacheServiceDate: string | undefined;
 let diaCacheServiceDate: string | undefined;
-let trafficCache: { value: TrafficResponse; expiresAt: number } | undefined;
-let trafficInflight: Promise<TrafficResponse> | undefined;
 
 // 未知の種別/行先コードは運行日内で同一コードにつき1回だけ debug イベントを記録する。
 const reportedUnknownCodes = new Set<string>();
@@ -95,11 +90,9 @@ let reportedUnknownCodesServiceDate: string | undefined;
 export function __resetCachesForTest(): void {
   stopCache.clear();
   diaCache.clear();
-  diaInflight.clear();
+  trafficCache.clear();
   stopCacheServiceDate = undefined;
   diaCacheServiceDate = undefined;
-  trafficCache = undefined;
-  trafficInflight = undefined;
   reportedUnknownCodes.clear();
   reportedUnknownCodesServiceDate = undefined;
 }
@@ -333,41 +326,21 @@ export function collectUpcomingTrains(
 }
 
 async function fetchTraffic(signal?: AbortSignal): Promise<TrafficResponse> {
-  if (trafficCache && trafficCache.expiresAt > Date.now()) {
-    recordDebugEvent({
-      kind: "cache_hit",
-      api: DEPARTURES_API,
-      target: TRAFFIC_URL,
-      summary: "Traffic cache hit",
-      detail: { cache: "traffic" },
-    });
-    return trafficCache.value;
-  }
-  if (trafficInflight) {
-    recordDebugEvent({
-      kind: "cache_hit",
-      api: DEPARTURES_API,
-      target: TRAFFIC_URL,
-      summary: "Traffic request joined in-flight fetch",
-      detail: { cache: "traffic", state: "inflight" },
-    });
-    return trafficInflight;
-  }
-
-  recordDebugEvent({
-    kind: "cache_miss",
-    api: DEPARTURES_API,
-    target: TRAFFIC_URL,
-    summary: "Traffic cache miss",
-    detail: { cache: "traffic" },
-  });
-  trafficInflight = withUpstream(
-    DEPARTURES_API,
+  return trafficCache.getOrFetch(
     TRAFFIC_URL,
-    () => fetch(TRAFFIC_URL, { signal }),
-    { provider: "opentidkeio", resource: "traffic" },
-  )
-    .then(async (response) => {
+    {
+      target: TRAFFIC_URL,
+      hitSummary: "Traffic cache hit",
+      missSummary: "Traffic cache miss",
+      inflightSummary: "Traffic request joined in-flight fetch",
+    },
+    async () => {
+      const response = await withUpstream(
+        DEPARTURES_API,
+        TRAFFIC_URL,
+        () => fetch(TRAFFIC_URL, { signal }),
+        { provider: "opentidkeio", resource: "traffic" },
+      );
       if (!response.ok) {
         recordDebugEvent({
           kind: "error",
@@ -381,59 +354,33 @@ async function fetchTraffic(signal?: AbortSignal): Promise<TrafficResponse> {
       }
 
       const value = (await response.json()) as TrafficResponse;
-      const normalized = {
+      return {
         TS: Array.isArray(value.TS) ? value.TS : [],
         TB: Array.isArray(value.TB) ? value.TB : [],
       };
-      trafficCache = { value: normalized, expiresAt: Date.now() + TRAFFIC_TTL_MS };
-      return normalized;
-    })
-    .finally(() => {
-      trafficInflight = undefined;
-    });
-  return trafficInflight;
+    },
+  );
 }
 
 async function fetchDia(trainId: string, serviceDate: string, signal?: AbortSignal): Promise<DiaResponse> {
   const cacheKey = `${serviceDate}:${trainId}`;
-  const cached = diaCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) {
-    recordDebugEvent({
-      kind: "cache_hit",
-      api: DEPARTURES_API,
+  return diaCache.getOrFetch(
+    cacheKey,
+    {
       target: cacheKey,
-      summary: "Dia cache hit",
-      detail: { cache: "dia", trainId, serviceDate },
-    });
-    return cached.value;
-  }
-  const inflight = diaInflight.get(cacheKey);
-  if (inflight) {
-    recordDebugEvent({
-      kind: "cache_hit",
-      api: DEPARTURES_API,
-      target: cacheKey,
-      summary: "Dia request joined in-flight fetch",
-      detail: { cache: "dia", trainId, serviceDate, state: "inflight" },
-    });
-    return inflight;
-  }
-
-  recordDebugEvent({
-    kind: "cache_miss",
-    api: DEPARTURES_API,
-    target: cacheKey,
-    summary: "Dia cache miss",
-    detail: { cache: "dia", trainId, serviceDate },
-  });
-  const diaUrl = `${DIA_URL_BASE}${encodeURIComponent(trainId)}.json`;
-  const request = withUpstream(
-    DEPARTURES_API,
-    diaUrl,
-    () => fetch(diaUrl, { signal }),
-    { provider: "opentidkeio", resource: "dia", trainId, serviceDate },
-  )
-    .then(async (response) => {
+      hitSummary: "Dia cache hit",
+      missSummary: "Dia cache miss",
+      inflightSummary: "Dia request joined in-flight fetch",
+      detail: { trainId, serviceDate },
+    },
+    async () => {
+      const diaUrl = `${DIA_URL_BASE}${encodeURIComponent(trainId)}.json`;
+      const response = await withUpstream(
+        DEPARTURES_API,
+        diaUrl,
+        () => fetch(diaUrl, { signal }),
+        { provider: "opentidkeio", resource: "dia", trainId, serviceDate },
+      );
       if (!response.ok) {
         recordDebugEvent({
           kind: "error",
@@ -457,14 +404,9 @@ async function fetchDia(trainId: string, serviceDate: string, signal?: AbortSign
         });
         throw new Error(`opentidkeio dia ${trainId} response is incomplete`);
       }
-      diaCache.set(cacheKey, { value, expiresAt: Date.now() + DIA_TTL_MS });
       return value;
-    })
-    .finally(() => {
-      diaInflight.delete(cacheKey);
-    });
-  diaInflight.set(cacheKey, request);
-  return request;
+    },
+  );
 }
 
 export function groupDepartures(candidates: TrainCandidate[], displayLimit: number): RailDeparturesResponse["departures"] {
@@ -581,16 +523,7 @@ function pruneDiaCache(serviceDate: string): void {
     return;
   }
 
-  for (const key of diaCache.keys()) {
-    if (!key.startsWith(`${serviceDate}:`)) {
-      diaCache.delete(key);
-    }
-  }
-  for (const key of diaInflight.keys()) {
-    if (!key.startsWith(`${serviceDate}:`)) {
-      diaInflight.delete(key);
-    }
-  }
+  diaCache.prune((key) => !key.startsWith(`${serviceDate}:`));
   diaCacheServiceDate = serviceDate;
 }
 

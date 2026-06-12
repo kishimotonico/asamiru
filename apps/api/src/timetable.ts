@@ -11,6 +11,19 @@ export const TIMETABLE_STALE_THRESHOLD_DAYS = 300;
 
 export type DiakindType = "weekday" | "holiday";
 
+/** 発車情報の候補列車。realtime はリアルタイム在線データ由来、schedule は時刻表補完。 */
+export type TrainCandidate = {
+  trainId: string;
+  direction: string;
+  kind: string;
+  dest: string;
+  scheduledMinutes: number;
+  estimatedMinutes: number;
+  delay: number;
+  /** データソース。補完候補は "schedule" */
+  source: "realtime" | "schedule";
+};
+
 export type TimetableFreshness = {
   generatedAt: string;
   daysSinceGenerated: number;
@@ -105,7 +118,6 @@ export function checkTimetableFreshness(generatedAt: string, now: Date): Timetab
 /**
  * 指定駅・方向の時刻表補完候補を返す。
  * realtimeTrainIds には既存リアルタイム候補の trainId（trim 済み）を渡して重複排除する。
- * 戻り値のオブジェクトは departures.ts の TrainCandidate 型互換。
  */
 export function buildScheduleCandidates(
   boardingStation: string,
@@ -113,16 +125,7 @@ export function buildScheduleCandidates(
   diakind: DiakindType,
   currentMinutes: number,
   realtimeTrainIds: Set<string>,
-): Array<{
-  trainId: string;
-  direction: string;
-  kind: string;
-  dest: string;
-  scheduledMinutes: number;
-  estimatedMinutes: number;
-  delay: number;
-  source: "schedule";
-}> {
+): TrainCandidate[] {
   const stationKey = Object.keys(timetable.stations).find(
     (k) => normalizeKey(k) === normalizeKey(boardingStation),
   );
@@ -132,7 +135,7 @@ export function buildScheduleCandidates(
   if (!directionData) return [];
 
   const entries = directionData[diakind];
-  const result = [];
+  const result: TrainCandidate[] = [];
 
   for (const entry of entries) {
     const minutes = timetableTimeToMinutes(entry.time);

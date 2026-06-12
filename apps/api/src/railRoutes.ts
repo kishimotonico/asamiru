@@ -19,7 +19,13 @@ export function createRailRoutes(): Hono {
   });
 
   app.post("/api/rail/line-status", async (c) => {
-    const body = await c.req.json<{ lines: WatchedLine[] }>();
+    let body: { lines: WatchedLine[] };
+    try {
+      body = await c.req.json<{ lines: WatchedLine[] }>();
+    } catch {
+      return c.json({ error: "Request body must be valid JSON" }, 400);
+    }
+
     const lines = Array.isArray(body?.lines) ? body.lines : [];
     recordDebugEvent({
       kind: "backend_request",
@@ -57,12 +63,17 @@ export function createRailRoutes(): Hono {
       source: "yahoo-transit",
       fetchedAt: new Date().toISOString(),
     };
-    c.header("Cache-Control", "public, max-age=300");
     return c.json(response);
   });
 
   app.post("/api/rail/departures", async (c) => {
-    const body = await c.req.json<{ boardingStation?: string; displayCount?: number }>();
+    let body: { boardingStation?: string; displayCount?: number };
+    try {
+      body = await c.req.json<{ boardingStation?: string; displayCount?: number }>();
+    } catch {
+      return c.json({ error: "Request body must be valid JSON" }, 400);
+    }
+
     const boardingStation = typeof body?.boardingStation === "string" ? body.boardingStation : "";
     const displayCount = Number(body?.displayCount);
     if (!boardingStation) {
@@ -84,7 +95,6 @@ export function createRailRoutes(): Hono {
         displayCount,
         signal: controller.signal,
       });
-      c.header("Cache-Control", "public, max-age=60");
       return c.json(response);
     } catch (error) {
       console.error("fetchDepartures failed:", error);

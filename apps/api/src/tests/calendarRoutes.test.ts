@@ -19,6 +19,12 @@ afterEach(() => {
 });
 
 describe("createCalendarRoutes", () => {
+  it("DELETE /api/calendar/cache はキャッシュ件数を返す", async () => {
+    const res = await app.request("/api/calendar/cache", { method: "DELETE" });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, cleared: expect.any(Number) });
+  });
+
   it("icsUrls が空ならネットワークアクセスせず空応答を返す", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     const response = await post({ icsUrls: [] });

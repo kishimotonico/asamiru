@@ -10,6 +10,15 @@ import { registerStaticFiles } from "./staticFiles.js";
 export function createApp(displayService: CreatedDisplayService): Hono {
   const app = new Hono();
 
+  // ハンドラ内の未捕捉エラーを 500 へ変換する。API はクライアントが JSON を期待するため形式を分ける
+  app.onError((error, c) => {
+    console.error("Unhandled error:", error);
+    if (c.req.path.startsWith("/api/")) {
+      return c.json({ error: "Internal server error" }, 500);
+    }
+    return c.text("Internal Server Error", 500);
+  });
+
   // correlation-id を付与し、デバッグ計測のコンテキストを伝播する
   app.use("/api/*", async (c, next) => {
     const correlationId = createCorrelationId();
