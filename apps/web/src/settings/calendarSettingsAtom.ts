@@ -31,6 +31,15 @@ export const CALENDAR_SETTINGS_STORAGE_KEY =
     ? "asamiru-calendar-settings-demo"
     : "asamiru-calendar-settings";
 
+export function isCalendarSettings(value: unknown): value is Partial<CalendarSettings> {
+  if (!isRecord(value)) return false;
+
+  return (
+    !hasOwn(value, "icsUrls") ||
+    (Array.isArray(value.icsUrls) && value.icsUrls.every((url) => typeof url === "string"))
+  );
+}
+
 const DEFAULTS =
   import.meta.env.VITE_DEMO_MODE === "true" ? DEMO_CALENDAR_SETTINGS : DEFAULT_CALENDAR_SETTINGS;
 
@@ -40,3 +49,11 @@ export const calendarSettingsAtom = atomWithStorage<CalendarSettings>(
   mergedStorage(DEFAULTS),
   { getOnInit: true },
 );
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasOwn(value: object, key: PropertyKey): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}

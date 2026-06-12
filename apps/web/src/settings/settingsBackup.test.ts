@@ -9,7 +9,7 @@ import {
   SETTINGS_STORAGE_KEYS,
 } from "./settingsBackup";
 
-const [WEATHER_KEY, TRAINS_KEY, CALENDAR_KEY] = SETTINGS_STORAGE_KEYS;
+const [WEATHER_KEY, TRAINS_KEY, CALENDAR_KEY, SLEEP_KEY, THEME_KEY] = SETTINGS_STORAGE_KEYS;
 const EXPORTED_AT = new Date("2026-06-12T03:04:05.000Z");
 
 afterEach(() => {
@@ -57,6 +57,63 @@ describe("parseSettingsBackup / applySettingsBackup", () => {
 
     expect(localStorage.getItem(WEATHER_KEY)).toBe('{"lat":1,"lon":2,"locationName":"テスト"}');
     expect(localStorage.getItem("asamiru-unknown")).toBeNull();
+  });
+
+  it.each([
+    [SLEEP_KEY, { windows: null }],
+    [CALENDAR_KEY, { icsUrls: "https://example.com/calendar.ics" }],
+  ])("不正な設定値を拒否し、キーをエラーに含める: %s", (key, value) => {
+    const json = JSON.stringify({
+      app: SETTINGS_BACKUP_APP,
+      version: SETTINGS_BACKUP_VERSION,
+      settings: { [key]: value },
+    });
+
+    expect(() => parseSettingsBackup(json)).toThrow(`設定「${key}」の値が不正です。`);
+  });
+
+  it("バックアップに含まれない既知キーを削除する", () => {
+    localStorage.setItem(WEATHER_KEY, JSON.stringify({ lat: 1, lon: 2, locationName: "変更前" }));
+    localStorage.setItem(TRAINS_KEY, JSON.stringify({ boardingStation: "変更前" }));
+
+    applySettingsBackup(localStorage, {
+      [WEATHER_KEY]: { lat: 43.06, lon: 141.35, locationName: "札幌" },
+    });
+
+    expect(localStorage.getItem(WEATHER_KEY)).toBe('{"lat":43.06,"lon":141.35,"locationName":"札幌"}');
+    expect(localStorage.getItem(TRAINS_KEY)).toBeNull();
+  });
+
+  it("空の settings を全設定をデフォルトへ戻すバックアップとして受理する", () => {
+    for (const key of SETTINGS_STORAGE_KEYS) {
+      localStorage.setItem(key, JSON.stringify({ changed: true }));
+    }
+
+    const json = JSON.stringify({
+      app: SETTINGS_BACKUP_APP,
+      version: SETTINGS_BACKUP_VERSION,
+      settings: {},
+    });
+    applySettingsBackup(localStorage, parseSettingsBackup(json));
+
+    for (const key of SETTINGS_STORAGE_KEYS) {
+      expect(localStorage.getItem(key)).toBeNull();
+    }
+  });
+
+  it("不正値が含まれる場合は既存の localStorage を変更しない", () => {
+    localStorage.setItem(WEATHER_KEY, JSON.stringify({ lat: 1, lon: 2, locationName: "変更前" }));
+    localStorage.setItem(THEME_KEY, JSON.stringify("dark"));
+    const before = SETTINGS_STORAGE_KEYS.map((key) => [key, localStorage.getItem(key)]);
+
+    expect(() =>
+      applySettingsBackup(localStorage, {
+        [WEATHER_KEY]: { lat: 43.06, lon: 141.35, locationName: "札幌" },
+        [SLEEP_KEY]: { windows: null },
+      }),
+    ).toThrow(`設定「${SLEEP_KEY}」の値が不正です。`);
+
+    expect(SETTINGS_STORAGE_KEYS.map((key) => [key, localStorage.getItem(key)])).toEqual(before);
   });
 
   it("不正な JSON を拒否する", () => {

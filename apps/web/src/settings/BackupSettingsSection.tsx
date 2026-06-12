@@ -8,18 +8,24 @@ export function BackupSettingsSection() {
   const [importing, setImporting] = useState(false);
 
   const exportSettings = () => {
-    const exportedAt = new Date();
-    const backup = createSettingsBackup(localStorage, exportedAt);
-    const blob = new Blob([`${JSON.stringify(backup, null, 2)}\n`], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
+    setError(undefined);
 
-    anchor.href = url;
-    anchor.download = `asamiru-settings-${formatDate(exportedAt)}.json`;
-    document.body.append(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
+    try {
+      const exportedAt = new Date();
+      const backup = createSettingsBackup(localStorage, exportedAt);
+      const blob = new Blob([`${JSON.stringify(backup, null, 2)}\n`], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+
+      anchor.href = url;
+      anchor.download = `asamiru-settings-${formatDate(exportedAt)}.json`;
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "設定のエクスポートに失敗しました。");
+    }
   };
 
   const importSettings = async (event: ChangeEvent<HTMLInputElement>) => {

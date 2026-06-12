@@ -1,6 +1,7 @@
 import { atomWithStorage } from "jotai/utils";
 import type { WatchedLine } from "@asamiru/shared";
 import { RAIL_CATALOG } from "./catalog";
+import type { TrainsSettings } from "./catalog";
 import { mergedStorage } from "./mergedStorage";
 
 export type { WatchedLine };
@@ -27,9 +28,40 @@ export const TRAINS_SETTINGS_STORAGE_KEY =
     ? "asamiru-trains-settings-demo"
     : "asamiru-trains-settings";
 
+export function isTrainsSettings(value: unknown): value is Partial<TrainsSettings> {
+  if (!isRecord(value)) return false;
+
+  return (
+    (!hasOwn(value, "boardingStation") || typeof value.boardingStation === "string") &&
+    (!hasOwn(value, "displayCount") || isNumber(value.displayCount)) &&
+    (!hasOwn(value, "watchedLines") ||
+      (Array.isArray(value.watchedLines) && value.watchedLines.every(isWatchedLine)))
+  );
+}
+
 export const trainsSettingsAtom = atomWithStorage(
   TRAINS_SETTINGS_STORAGE_KEY,
   RAIL_CATALOG.defaults,
   mergedStorage(RAIL_CATALOG.defaults),
   { getOnInit: true },
 );
+
+function isWatchedLine(value: unknown): value is WatchedLine {
+  return (
+    isRecord(value) &&
+    typeof value.name === "string" &&
+    typeof value.yahooUrl === "string"
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasOwn(value: object, key: PropertyKey): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function isNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}

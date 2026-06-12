@@ -26,12 +26,46 @@ export const DEFAULT_SLEEP_SETTINGS: SleepSettings = {
 
 export const SLEEP_SETTINGS_STORAGE_KEY = "asamiru-sleep-settings";
 
+export function isSleepSettings(value: unknown): value is Partial<SleepSettings> {
+  if (!isRecord(value)) return false;
+
+  return (
+    (!hasOwn(value, "enabled") || typeof value.enabled === "boolean") &&
+    (!hasOwn(value, "windows") ||
+      (Array.isArray(value.windows) && value.windows.every(isSleepWindow))) &&
+    (!hasOwn(value, "manualWakeDurationMin") || isNumber(value.manualWakeDurationMin))
+  );
+}
+
 export const sleepSettingsAtom = atomWithStorage<SleepSettings>(
   SLEEP_SETTINGS_STORAGE_KEY,
   DEFAULT_SLEEP_SETTINGS,
   mergedStorage(DEFAULT_SLEEP_SETTINGS),
   { getOnInit: true },
 );
+
+function isSleepWindow(value: unknown): value is SleepWindow {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    Array.isArray(value.days) &&
+    value.days.every(isNumber) &&
+    typeof value.start === "string" &&
+    typeof value.end === "string"
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasOwn(value: object, key: PropertyKey): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function isNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
 
 /** "HH:MM" を 0-1439 の分に変換。不正値は NaN。 */
 function parseHmToMinutes(hm: string): number {

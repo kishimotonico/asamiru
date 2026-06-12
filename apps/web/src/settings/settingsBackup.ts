@@ -1,21 +1,24 @@
-import { SLEEP_SETTINGS_STORAGE_KEY } from "../sleep/sleepSettingsAtom";
-import { THEME_STORAGE_KEY } from "../theme/themeAtom";
-import { CALENDAR_SETTINGS_STORAGE_KEY } from "./calendarSettingsAtom";
-import { TRAINS_SETTINGS_STORAGE_KEY } from "./trainsSettingsAtom";
-import { WEATHER_SETTINGS_STORAGE_KEY } from "./weatherSettingsAtom";
+import { isSleepSettings, SLEEP_SETTINGS_STORAGE_KEY } from "../sleep/sleepSettingsAtom";
+import { isThemePreference, THEME_STORAGE_KEY } from "../theme/themeAtom";
+import { isCalendarSettings, CALENDAR_SETTINGS_STORAGE_KEY } from "./calendarSettingsAtom";
+import { isTrainsSettings, TRAINS_SETTINGS_STORAGE_KEY } from "./trainsSettingsAtom";
+import { isWeatherSettings, WEATHER_SETTINGS_STORAGE_KEY } from "./weatherSettingsAtom";
 
 export const SETTINGS_BACKUP_APP = "asamiru";
 export const SETTINGS_BACKUP_VERSION = 1;
 
-export const SETTINGS_STORAGE_KEYS = [
-  WEATHER_SETTINGS_STORAGE_KEY,
-  TRAINS_SETTINGS_STORAGE_KEY,
-  CALENDAR_SETTINGS_STORAGE_KEY,
-  SLEEP_SETTINGS_STORAGE_KEY,
-  THEME_STORAGE_KEY,
+const SETTINGS_REGISTRY = [
+  { key: WEATHER_SETTINGS_STORAGE_KEY, isValid: isWeatherSettings },
+  { key: TRAINS_SETTINGS_STORAGE_KEY, isValid: isTrainsSettings },
+  { key: CALENDAR_SETTINGS_STORAGE_KEY, isValid: isCalendarSettings },
+  { key: SLEEP_SETTINGS_STORAGE_KEY, isValid: isSleepSettings },
+  { key: THEME_STORAGE_KEY, isValid: isThemePreference },
 ] as const;
 
-export type SettingsStorageKey = (typeof SETTINGS_STORAGE_KEYS)[number];
+export type SettingsStorageKey = (typeof SETTINGS_REGISTRY)[number]["key"];
+export const SETTINGS_STORAGE_KEYS: readonly SettingsStorageKey[] = SETTINGS_REGISTRY.map(
+  ({ key }) => key,
+);
 export type SettingsBackupValues = Partial<Record<SettingsStorageKey, unknown>>;
 
 export type SettingsBackup = {
@@ -26,12 +29,12 @@ export type SettingsBackup = {
 };
 
 type StorageReader = Pick<Storage, "getItem">;
-type StorageWriter = Pick<Storage, "setItem">;
+type StorageWriter = Pick<Storage, "removeItem" | "setItem">;
 
 export function createSettingsBackup(storage: StorageReader, exportedAt: Date): SettingsBackup {
   const settings: SettingsBackupValues = {};
 
-  for (const key of SETTINGS_STORAGE_KEYS) {
+  for (const { key } of SETTINGS_REGISTRY) {
     const storedValue = storage.getItem(key);
     if (storedValue === null) continue;
 
@@ -72,30 +75,54 @@ export function parseSettingsBackup(json: string): SettingsBackupValues {
     throw new Error("バックアップファイルの settings がオブジェクトではありません。");
   }
 
-  const settings: SettingsBackupValues = {};
-  for (const key of SETTINGS_STORAGE_KEYS) {
-    if (hasOwn(input.settings, key)) {
-      settings[key] = input.settings[key];
-    }
-  }
-
-  if (Object.keys(settings).length === 0) {
-    throw new Error("バックアップファイルに既知の設定が1件も含まれていません。");
-  }
-
-  return settings;
+  return validateSettings(input.settings);
 }
 
 export function applySettingsBackup(storage: StorageWriter, settings: Readonly<Record<string, unknown>>): void {
-  for (const key of SETTINGS_STORAGE_KEYS) {
-    if (!hasOwn(settings, key)) continue;
+  const validatedSettings = validateSettings(settings);
+  const serializedSettings = new Map<SettingsStorageKey, string>();
 
-    const serializedValue = JSON.stringify(settings[key]);
+  for (const { key } of SETTINGS_REGISTRY) {
+    if (!hasOwn(validatedSettings, key)) continue;
+
+    let serializedValue: string | undefined;
+    try {
+      serializedValue = JSON.stringify(validatedSettings[key]);
+    } catch {
+      throw new Error(`設定「${key}」を JSON として保存できません。`);
+    }
     if (serializedValue === undefined) {
       throw new Error(`設定「${key}」を JSON として保存できません。`);
     }
+    serializedSettings.set(key, serializedValue);
+  }
+
+  for (const { key } of SETTINGS_REGISTRY) {
+    storage.removeItem(key);
+  }
+  for (const [key, serializedValue] of serializedSettings) {
     storage.setItem(key, serializedValue);
   }
+}
+
+function validateSettings(settings: Readonly<Record<string, unknown>>): SettingsBackupValues {
+  const validatedSettings: SettingsBackupValues = {};
+
+  for (const { key, isValid } of SETTINGS_REGISTRY) {
+    if (!hasOwn(settings, key)) continue;
+
+    const value = settings[key];
+    if (!isValid(value)) {
+      throw new Error(`設定「${key}」の値が不正です。`);
+    }
+    validatedSettings[key] = value;
+  }
+
+  if (Object.keys(settings).length > 0 && Object.keys(validatedSettings).length === 0) {
+    throw new Error("バックアップファイルに既知の設定が1件も含まれていません。");
+  }
+
+  return validatedSettings;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
