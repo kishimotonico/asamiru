@@ -11,6 +11,7 @@ const WEATHER_INTERVAL_MS = 10 * 60 * 1000;
 const DEPARTURES_INTERVAL_MS = 90 * 1000;
 const LINE_STATUS_INTERVAL_MS = 5 * 60 * 1000;
 const CALENDAR_INTERVAL_MS = 10 * 60 * 1000;
+const CALENDAR_RANGE_DAYS = 14;
 
 export function weatherQueryOptions(settings: WeatherSettings) {
   return queryOptions({
@@ -49,8 +50,8 @@ export function departuresQueryOptions(settings: TrainsSettings) {
 
 export function calendarEventsQueryOptions(icsUrls: string[]) {
   return queryOptions({
-    queryKey: ["dashboard", "calendar-events", icsUrls],
-    queryFn: ({ signal }) => fetchCalendarEvents({ icsUrls, days: 2 }, { signal }),
+    queryKey: ["dashboard", "calendar-events", { icsUrls, days: CALENDAR_RANGE_DAYS }],
+    queryFn: ({ signal }) => fetchCalendarEvents({ icsUrls, days: CALENDAR_RANGE_DAYS }, { signal }),
     staleTime: CALENDAR_INTERVAL_MS,
     refetchInterval: CALENDAR_INTERVAL_MS,
     refetchIntervalInBackground: true,

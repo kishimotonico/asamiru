@@ -4,6 +4,7 @@ import { DataUpdateWarning, RetryButton, dataCardStatus } from "./DataCardStatus
 import { DashboardCard } from "./DashboardCard";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+const AGENDA_EVENT_LIMIT = 5;
 
 type Day = { date: number; isToday: boolean } | null;
 
@@ -21,25 +22,48 @@ export function buildMonth(today: Date) {
 
 type AgendaDay = {
   key: string;
-  label: "今日" | "明日";
+  label: string;
   events: Array<CalendarEvent & { time?: string }>;
 };
 
-export function buildCalendarAgenda(events: CalendarEvent[], now: Date): AgendaDay[] {
+export function buildCalendarAgenda(
+  events: CalendarEvent[],
+  now: Date,
+  eventLimit = AGENDA_EVENT_LIMIT,
+): AgendaDay[] {
   const todayStart = startOfJstDay(now);
-  return (["今日", "明日"] as const).map((label, index) => {
-    const dayStart = new Date(todayStart.getTime() + index * 24 * 60 * 60 * 1000);
-    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-    const key = jstDateKey(dayStart);
-    return {
+  const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+  const agenda = new Map<string, AgendaDay>();
+
+  const visibleEvents = events
+    .filter((event) =>
+      event.allDay ? new Date(event.end) > todayStart : new Date(event.start) >= todayStart,
+    )
+    .map((event) => {
+      const eventStart = new Date(event.start);
+      const displayDay = eventStart < todayStart ? todayStart : startOfJstDay(eventStart);
+      return { event, displayDay };
+    })
+    .sort(
+      (a, b) =>
+        a.displayDay.getTime() - b.displayDay.getTime() ||
+        a.event.start.localeCompare(b.event.start) ||
+        a.event.title.localeCompare(b.event.title, "ja"),
+    )
+    .slice(0, eventLimit);
+
+  for (const { event, displayDay } of visibleEvents) {
+    const key = jstDateKey(displayDay);
+    const day = agenda.get(key) ?? {
       key,
-      label,
-      events: events
-        .filter((event) => occursOnDay(event, dayStart, dayEnd))
-        .map((event) => ({ ...event, time: event.allDay ? undefined : jstTime(event.start) }))
-        .sort((a, b) => a.start.localeCompare(b.start) || a.title.localeCompare(b.title, "ja")),
+      label: agendaDayLabel(displayDay, todayStart, tomorrowStart),
+      events: [],
     };
-  });
+    day.events.push({ ...event, time: event.allDay ? undefined : jstTime(event.start) });
+    agenda.set(key, day);
+  }
+
+  return [...agenda.values()];
 }
 
 export function CalendarCard({
@@ -159,13 +183,16 @@ function CalendarStatusCard({
   );
 }
 
-function occursOnDay(event: CalendarEvent, dayStart: Date, dayEnd: Date): boolean {
-  const start = new Date(event.start);
-  const end = new Date(event.end);
-  if (event.allDay) {
-    return start < dayEnd && end > dayStart;
-  }
-  return start >= dayStart && start < dayEnd;
+function agendaDayLabel(date: Date, todayStart: Date, tomorrowStart: Date): string {
+  const key = jstDateKey(date);
+  if (key === jstDateKey(todayStart)) return "今日";
+  if (key === jstDateKey(tomorrowStart)) return "明日";
+  return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    month: "numeric",
+    day: "numeric",
+    weekday: "short",
+  }).format(date);
 }
 
 function startOfJstDay(date: Date): Date {

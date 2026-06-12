@@ -35,7 +35,7 @@ export const handlers = [
     return HttpResponse.json(response);
   }),
 
-  // カレンダー予定: icsUrls の中身は問わず、架空の予定（今日2件・明日1件）を返す
+  // カレンダー予定: icsUrls の中身は問わず、直近14日内の架空の予定を返す
   // API クライアント（data/calendarEvents.ts）は `{ icsUrls, days }` で POST する
   http.post("*/api/calendar/events", async () => {
     const response: CalendarEventsResponse = buildDemoCalendarEvents();

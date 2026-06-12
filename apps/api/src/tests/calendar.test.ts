@@ -92,6 +92,14 @@ describe("parseCalendarEvents", () => {
     expect(events.map((event) => event.title)).toEqual(["単発予定", "繰り返し予定"]);
   });
 
+  it("14日範囲では7日後を含み、14日後を除外する", () => {
+    const fixture = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:week-later\r\nDTSTART;TZID=Asia/Tokyo:20260618T100000\r\nDTEND;TZID=Asia/Tokyo:20260618T110000\r\nSUMMARY:1週間後\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:two-weeks-later\r\nDTSTART;TZID=Asia/Tokyo:20260625T100000\r\nDTEND;TZID=Asia/Tokyo:20260625T110000\r\nSUMMARY:2週間後\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;
+
+    expect(parseCalendarEvents(fixture, { now: NOW, days: 14 }).map((event) => event.title)).toEqual([
+      "1週間後",
+    ]);
+  });
+
   it("タイトルがない VEVENT は throw する", () => {
     const invalid = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:invalid\r\nDTSTART:20260611T000000Z\r\nDTEND:20260611T010000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;
     expect(() => parseCalendarEvents(invalid, { now: NOW })).toThrow("ICS event is missing a title");
