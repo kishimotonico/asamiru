@@ -139,8 +139,8 @@ function OverlayButton({ onClick, ariaLabel, pressed, children }: OverlayButtonP
       aria-pressed={pressed}
       whileHover={{ scale: 1.1 }}
       whileTap={{ scale: 0.92 }}
-      transition={{ type: "spring", stiffness: 400, damping: 30 }}
-      // damping は 30（減衰比 0.75）で軽くバウンドさせつつ震えを抑える
+      transition={{ type: "spring", stiffness: 400, damping: 22 }}
+      // damping は 22（減衰比 0.55）で軽く弾ませる
       className={cn(
         "flex h-11 w-11 items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-surface-muted hover:text-ink",
         pressed && "bg-surface-muted text-ink",
