@@ -44,7 +44,7 @@ export const handlers = [
   }),
 
   // 天気はハンドラー不要: 実 Open-Meteo API へ素通しし（onUnhandledRequest: "bypass"）、
-  // デモの地名（キヴォトス）は設定カタログ（settings/catalog）のデフォルト値で供給する
+  // デモの地名（シラトリ区）は設定カタログ（settings/catalog）のデフォルト値で供給する
 
   // モニター連動: enabled:false で connectWithRetry をリトライなし終端させる
   http.get("*/api/system/display", () => {

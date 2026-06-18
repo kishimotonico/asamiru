@@ -12,14 +12,14 @@ export const RAIL_CATALOG: RailCatalog = {
 // ─── デモ天気カタログ ──────────────────────────────────────────────────────
 
 /**
- * 地名は架空（キヴォトス）だが、デモでも実 Open-Meteo API へ
+ * 地名は架空（シラトリ区）だが、デモでも実 Open-Meteo API へ
  * パススルーするため座標は実在地点（東京）を指す。
  */
 export const WEATHER_CATALOG: WeatherCatalog = {
   defaults: {
     lat: 35.6895,
     lon: 139.6917,
-    locationName: "キヴォトス",
+    locationName: "シラトリ区",
   },
 };
 
