@@ -1,4 +1,5 @@
 import type { WatchedLine } from "@asamiru/shared";
+import type { SleepSettings } from "../../sleep/sleepSettingsAtom";
 
 // ─── 設定型 ────────────────────────────────────────────────────────────────
 
@@ -39,4 +40,15 @@ export type RailCatalog = {
 export type WeatherCatalog = {
   /** 初期設定（座標・表示用の地名） */
   defaults: WeatherSettings;
+};
+
+// ─── スリープカタログ ──────────────────────────────────────────────────────
+
+/**
+ * スリープの初期設定。鉄道・天気カタログと同様に、本番／デモで
+ * VITE_DEMO_MODE フラグによってビルド時に切り替わる。
+ */
+export type SleepCatalog = {
+  /** 初期設定（自動スリープ・起床時間帯・手動起床時間） */
+  defaults: SleepSettings;
 };

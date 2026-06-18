@@ -1,5 +1,6 @@
 import { atomWithStorage } from "jotai/utils";
 import { hasOwn, isNumber, isRecord } from "../lib/guards";
+import { SLEEP_CATALOG } from "../settings/catalog";
 import { mergedStorage } from "../settings/mergedStorage";
 
 /** 起きてる時間帯（awake window）。days は 0(日)-6(土)、start/end は "HH:MM"。 */
@@ -19,13 +20,18 @@ export type SleepSettings = {
   manualWakeDurationMin: number;
 };
 
-export const DEFAULT_SLEEP_SETTINGS: SleepSettings = {
-  enabled: true,
-  windows: [{ id: "default-weekday-morning", days: [1, 2, 3, 4, 5], start: "06:00", end: "09:00" }],
-  manualWakeDurationMin: 15,
-};
+export const DEFAULT_SLEEP_SETTINGS: SleepSettings = SLEEP_CATALOG.defaults;
 
-export const SLEEP_SETTINGS_STORAGE_KEY = "asamiru-sleep-settings";
+/**
+ * localStorage key はビルドモードで分離する。
+ * mergedStorage は保存値をデフォルトより優先するため、同一オリジンに
+ * 本番設定（enabled: true）が残っているとデモのデフォルト（enabled: false）に
+ * 被さって自動スリープしてしまう。key を分けて本番／デモのストレージを完全分離する。
+ */
+export const SLEEP_SETTINGS_STORAGE_KEY =
+  import.meta.env.VITE_DEMO_MODE === "true"
+    ? "asamiru-sleep-settings-demo"
+    : "asamiru-sleep-settings";
 
 export function isSleepSettings(value: unknown): value is Partial<SleepSettings> {
   if (!isRecord(value)) return false;

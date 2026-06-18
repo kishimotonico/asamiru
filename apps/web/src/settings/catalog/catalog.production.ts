@@ -1,5 +1,5 @@
 import { MASTER_TRAIN_LINES } from "@asamiru/shared";
-import type { RailCatalog, WeatherCatalog } from "./types";
+import type { RailCatalog, SleepCatalog, WeatherCatalog } from "./types";
 
 // ─── 本番鉄道カタログ ──────────────────────────────────────────────────────
 
@@ -36,5 +36,15 @@ export const WEATHER_CATALOG: WeatherCatalog = {
     lat: 35.6895,
     lon: 139.6917,
     locationName: "東京",
+  },
+};
+
+// ─── 本番スリープカタログ ──────────────────────────────────────────────────
+
+export const SLEEP_CATALOG: SleepCatalog = {
+  defaults: {
+    enabled: true,
+    windows: [{ id: "default-weekday-morning", days: [1, 2, 3, 4, 5], start: "06:00", end: "09:00" }],
+    manualWakeDurationMin: 15,
   },
 };

@@ -1,5 +1,5 @@
 import { DEMO_STATIONS, DEMO_LINES, DEMO_DEFAULTS } from "../../demo/railDemoData";
-import type { RailCatalog, WeatherCatalog } from "./types";
+import type { RailCatalog, SleepCatalog, WeatherCatalog } from "./types";
 
 // ─── デモ鉄道カタログ ──────────────────────────────────────────────────────
 
@@ -20,5 +20,18 @@ export const WEATHER_CATALOG: WeatherCatalog = {
     lat: 35.6895,
     lon: 139.6917,
     locationName: "キヴォトス",
+  },
+};
+
+// ─── デモスリープカタログ ──────────────────────────────────────────────────
+
+/**
+ * デモは自動スリープを無効化し、開いた時刻に関わらずダッシュボードを表示する。
+ */
+export const SLEEP_CATALOG: SleepCatalog = {
+  defaults: {
+    enabled: false,
+    windows: [{ id: "default-weekday-morning", days: [1, 2, 3, 4, 5], start: "06:00", end: "09:00" }],
+    manualWakeDurationMin: 15,
   },
 };
