@@ -158,19 +158,18 @@ export function DebugOverlay({ open, onOpenChange }: DebugOverlayProps) {
             />
           </>
         ) : metricsLoading ? (
-          <div className="mt-5 rounded-lg border border-dashed border-white/15 px-5 py-10 text-center text-sm text-white/45">
-            backend metrics を読み込んでいます...
+          <div className="mt-5 flex min-h-[260px] flex-col items-center justify-center rounded-lg border border-dashed border-white/15 px-5 text-center text-sm text-white/45">
+            loading metrics...
           </div>
         ) : metricsError ? (
-          <div className="mt-5 rounded-lg border border-dashed border-white/15 px-5 py-10 text-center">
+          <div className="mt-5 flex min-h-[260px] flex-col items-center justify-center rounded-lg border border-dashed border-white/15 px-5 text-center">
             <div className="text-lg font-semibold tracking-[0.2em] text-white/55">NO DATA</div>
-            <div className="mt-2 text-sm text-white/40">backend metrics を取得できませんでした。Refresh で再取得できます。</div>
-            <div className="mt-1 text-xs text-white/25">{metricsError}</div>
+            <div className="mt-2 text-xs text-white/30">{metricsError}</div>
           </div>
         ) : (
-          <div className="mt-5 rounded-lg border border-dashed border-white/15 px-5 py-10 text-center">
+          <div className="mt-5 flex min-h-[260px] flex-col items-center justify-center rounded-lg border border-dashed border-white/15 px-5 text-center">
             <div className="text-lg font-semibold tracking-[0.2em] text-white/55">NO DATA</div>
-            <div className="mt-2 text-sm text-white/40">パネルを開いたタイミングで1回だけ自動取得します。再取得は Refresh を押してください。</div>
+            <div className="mt-2 text-xs text-white/30">not fetched</div>
           </div>
         )}
       </div>
