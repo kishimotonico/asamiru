@@ -51,7 +51,7 @@
 - `position: fixed` 右上、`z-50`（モーダルは `z-[10000]` でその上）
 - ポインター操作中のみ表示（`pointermove` / `pointerdown` で出現、2秒無操作でフェードアウト）。キーボードフォーカス時も再表示する
 - 非表示中は `aria-hidden` + `pointer-events-none` で操作・読み上げ対象から除外する
-- ボタンは `OverlayButton`（9×9・角丸・`text-ink-subtle` → hover で `text-ink` + `bg-surface-muted`）に揃える
+- ボタンは `OverlayButton`（11×11・角丸・`text-ink-subtle` → hover で `text-ink` + `bg-surface-muted`）に揃える。アイコンSVGは 22px
 - 設定モーダルの開閉状態はオーバーレイが所有する
 
 カード（`DashboardCard`）には表示専用のコンテンツのみを置き、操作ボタンを混ぜない。
