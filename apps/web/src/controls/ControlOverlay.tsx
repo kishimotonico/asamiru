@@ -11,13 +11,15 @@ const HIDE_DELAY_MS = 2000;
 type ControlOverlayProps = {
   effective: EffectiveTheme;
   onSleepClick?: () => void;
+  debugOpen?: boolean;
+  onDebugClick?: () => void;
 };
 
 /**
  * 画面全体に対する操作層。右上に集約し、ポインター操作中のみ表示する。
  * 設定モーダルの開閉状態はこの層が所有する（アプリ全体の設定という位置づけ）。
  */
-export function ControlOverlay({ effective, onSleepClick }: ControlOverlayProps) {
+export function ControlOverlay({ effective, onSleepClick, debugOpen = false, onDebugClick }: ControlOverlayProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { isFullscreen, toggle: toggleFullscreen } = useFullscreen();
   const [visible, setVisible] = useState(false);
@@ -93,6 +95,21 @@ export function ControlOverlay({ effective, onSleepClick }: ControlOverlayProps)
             </svg>
           </OverlayButton>
         ) : null}
+        {onDebugClick ? (
+          <OverlayButton onClick={onDebugClick} ariaLabel={debugOpen ? "デバッグを閉じる" : "デバッグ"} pressed={debugOpen}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m8 2 1.9 1.9" />
+              <path d="M14.1 3.9 16 2" />
+              <path d="M9 7V6a3 3 0 0 1 6 0v1" />
+              <path d="M8 9h8" />
+              <path d="M7 13H4" />
+              <path d="M20 13h-3" />
+              <path d="M7 17H4" />
+              <path d="M20 17h-3" />
+              <rect x="7" y="7" width="10" height="14" rx="4" />
+            </svg>
+          </OverlayButton>
+        ) : null}
         <OverlayButton onClick={() => setSettingsOpen(true)} ariaLabel="設定">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="3" />
@@ -109,19 +126,24 @@ export function ControlOverlay({ effective, onSleepClick }: ControlOverlayProps)
 type OverlayButtonProps = {
   onClick: () => void;
   ariaLabel: string;
+  pressed?: boolean;
   children: React.ReactNode;
 };
 
-function OverlayButton({ onClick, ariaLabel, children }: OverlayButtonProps) {
+function OverlayButton({ onClick, ariaLabel, pressed, children }: OverlayButtonProps) {
   return (
     <motion.button
       type="button"
       onClick={onClick}
       aria-label={ariaLabel}
+      aria-pressed={pressed}
       whileHover={{ scale: 1.1 }}
       whileTap={{ scale: 0.92 }}
       transition={{ type: "spring", stiffness: 400, damping: 22 }}
-      className="flex h-9 w-9 items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-surface-muted hover:text-ink"
+      className={cn(
+        "flex h-9 w-9 items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-surface-muted hover:text-ink",
+        pressed && "bg-surface-muted text-ink",
+      )}
     >
       {children}
     </motion.button>

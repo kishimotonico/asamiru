@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import type { SetStateAction } from "react";
 import { isTextInputTarget } from "../lib/dom";
 import { formatTime } from "./format";
 import { useDebugMetrics } from "./useDebugMetrics";
@@ -31,10 +32,39 @@ function breakpoint(w: number): string {
   return "xs";
 }
 
-export function DebugOverlay() {
-  const [visible, setVisible] = useState(false);
+type DebugOverlayProps = {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+};
+
+export function DebugOverlay({ open, onOpenChange }: DebugOverlayProps = {}) {
+  const [uncontrolledVisible, setUncontrolledVisible] = useState(false);
   const [info, setInfo] = useState<Info>(snapshot);
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
+  const visible = open ?? uncontrolledVisible;
+
+  const setVisible = useCallback(
+    (next: SetStateAction<boolean>) => {
+      if (typeof next === "function") {
+        if (open === undefined) {
+          setUncontrolledVisible((current) => {
+            const resolved = next(current);
+            onOpenChange?.(resolved);
+            return resolved;
+          });
+        } else {
+          onOpenChange?.(next(open));
+        }
+        return;
+      }
+
+      if (open === undefined) {
+        setUncontrolledVisible(next);
+      }
+      onOpenChange?.(next);
+    },
+    [onOpenChange, open],
+  );
 
   const { metrics, metricsError, metricsLoading, refreshMetrics } = useDebugMetrics(visible, setExpandedEventId);
 
@@ -56,7 +86,7 @@ export function DebugOverlay() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [setVisible]);
 
   if (!visible) {
     return (
@@ -89,16 +119,36 @@ export function DebugOverlay() {
             type="button"
             onClick={() => void refreshMetrics()}
             disabled={metricsLoading}
-            className="rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-[#111317] hover:bg-white/90 disabled:opacity-40"
+            aria-label={metricsLoading ? "metrics を更新中" : "metrics を再読み込み"}
+            className="flex h-8 w-8 items-center justify-center rounded-md bg-white text-[#111317] transition hover:bg-white/90 disabled:opacity-40"
           >
-            {metricsLoading ? "Loading..." : "Refresh"}
+            <svg
+              className={metricsLoading ? "animate-spin" : undefined}
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 12a9 9 0 0 1-9 9 9.8 9.8 0 0 1-6.7-2.7" />
+              <path d="M3 12a9 9 0 0 1 9-9 9.8 9.8 0 0 1 6.7 2.7" />
+              <path d="M3 18h6" />
+              <path d="M21 6h-6" />
+            </svg>
           </button>
           <button
             type="button"
             onClick={() => setVisible(false)}
-            className="rounded-md border border-white/10 px-3 py-1.5 text-xs font-semibold text-white/60 hover:bg-white/10 hover:text-white"
+            aria-label="デバッグパネルを閉じる"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-white/10 text-white/60 transition hover:bg-white/10 hover:text-white"
           >
-            Hide
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
           </button>
         </div>
       </div>

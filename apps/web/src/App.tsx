@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ControlOverlay } from "./controls/ControlOverlay";
 import { DemoBadge } from "./controls/DemoBadge";
 import { useIdleCursor } from "./controls/useIdleCursor";
@@ -10,13 +11,21 @@ import { useApplyTheme } from "./theme/useApplyTheme";
 export default function App() {
   const { sleeping, now, sleepNow } = useSleepController();
   const effectiveTheme = useApplyTheme();
+  const [debugOpen, setDebugOpen] = useState(false);
   useIdleCursor(!sleeping);
 
   return (
     <>
       {sleeping ? <SleepScreen now={now} /> : <Dashboard />}
-      {!sleeping ? <ControlOverlay effective={effectiveTheme} onSleepClick={sleepNow} /> : null}
-      {import.meta.env.DEV && <DebugOverlay />}
+      {!sleeping ? (
+        <ControlOverlay
+          effective={effectiveTheme}
+          onSleepClick={sleepNow}
+          debugOpen={import.meta.env.DEV ? debugOpen : undefined}
+          onDebugClick={import.meta.env.DEV ? () => setDebugOpen((current) => !current) : undefined}
+        />
+      ) : null}
+      {import.meta.env.DEV && <DebugOverlay open={debugOpen} onOpenChange={setDebugOpen} />}
       {import.meta.env.VITE_DEMO_MODE === "true" && <DemoBadge />}
     </>
   );
