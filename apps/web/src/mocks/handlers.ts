@@ -2,6 +2,7 @@ import { http, HttpResponse } from "msw";
 import type { CalendarEventsResponse, DisplayInfoResponse, RailDeparturesResponse } from "@asamiru/shared";
 import type { WatchedLine } from "@asamiru/shared";
 import { buildDemoCalendarEvents } from "../demo/calendarDemoData";
+import { buildDemoDebugMetrics } from "../demo/debugDemoData";
 import { buildDemoDepartures, buildDemoLineStatus } from "../demo/railDemoData";
 
 // ─── ハンドラー定義 ────────────────────────────────────────────────────────
@@ -50,5 +51,10 @@ export const handlers = [
   http.get("*/api/system/display", () => {
     const response: DisplayInfoResponse = { enabled: false };
     return HttpResponse.json(response);
+  }),
+
+  // デバッグ計測: デモは API を持たないため架空メトリクスを返す
+  http.get("*/api/debug/metrics", () => {
+    return HttpResponse.json(buildDemoDebugMetrics());
   }),
 ];
