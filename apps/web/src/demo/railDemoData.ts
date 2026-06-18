@@ -10,12 +10,11 @@ import type { TrainsSettings } from "../settings/catalog/types";
 
 export const DEMO_STATIONS: string[] = [
   "きさらぎ駅",
+  "子ウサギ公園",
   "シタデル",
-  "トリニティ",
-  "ゲヘナ",
-  "ミレニアム",
-  "アビドス",
-  "百鬼夜行学園前",
+  "鐘崎港",
+  "キツネ市場",
+  "芸術学園前",
 ];
 
 type DemoLineMeta = {
@@ -43,13 +42,13 @@ const DEMO_LINE_CATALOG: DemoLineMeta[] = [
     level: "ok",
   },
   {
-    name: "トリニティ連絡鉄道",
+    name: "子ウサギ連絡鉄道",
     yahooUrl: "demo:trinity-rail",
     status: "平常運転",
     level: "ok",
   },
   {
-    name: "ゲヘナ急行電鉄",
+    name: "月ノ宮急行電鉄",
     yahooUrl: "demo:gehenna-express",
     status: "平常運転",
     level: "ok",
@@ -84,16 +83,16 @@ function minutesLater(offset: number): string {
  */
 export function buildDemoDepartures(): RailDeparturesResponse["departures"] {
   return {
-    "トリニティ・シタデル方面": [
+    "子ウサギ公園・シタデル方面": [
       // きさらぎライナーバッジの特別スタイルを確認できるよう先頭に置く
-      { time: minutesLater(1), kind: "きさらぎライナー", dest: "シタデル", delay: 0, source: "realtime" },
-      { time: minutesLater(6), kind: "準特急", dest: "トリニティ", source: "realtime" },
-      { time: minutesLater(14), kind: "各停", dest: "百鬼夜行学園前", source: "schedule" },
+      { time: minutesLater(1), kind: "きさらぎライナー", dest: "芸術学園前", delay: 0, source: "realtime" },
+      { time: minutesLater(6), kind: "準特急", dest: "シタデル", source: "realtime" },
+      { time: minutesLater(14), kind: "各停", dest: "子ウサギ公園", source: "schedule" },
     ],
-    "ゲヘナ・ミレニアム方面": [
-      { time: minutesLater(5), scheduled: minutesLater(1), kind: "急行", dest: "ゲヘナ", delay: 4, source: "realtime" },
-      { time: minutesLater(8), kind: "各停", dest: "ミレニアム", source: "realtime" },
-      { time: minutesLater(17), kind: "準特急", dest: "アビドス", source: "schedule" },
+    "鐘崎港・キツネ市場方面": [
+      { time: minutesLater(5), scheduled: minutesLater(1), kind: "急行", dest: "鐘崎港", delay: 4, source: "realtime" },
+      { time: minutesLater(8), kind: "各停", dest: "キツネ市場", source: "realtime" },
+      { time: minutesLater(17), kind: "準特急", dest: "鐘崎港", source: "schedule" },
     ],
   };
 }
