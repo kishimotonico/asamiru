@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { SetStateAction } from "react";
 import { isTextInputTarget } from "../lib/dom";
 import { formatTime } from "./format";
@@ -33,40 +33,27 @@ function breakpoint(w: number): string {
 }
 
 type DebugOverlayProps = {
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 };
 
-export function DebugOverlay({ open, onOpenChange }: DebugOverlayProps = {}) {
-  const [uncontrolledVisible, setUncontrolledVisible] = useState(false);
+export function DebugOverlay({ open, onOpenChange }: DebugOverlayProps) {
   const [info, setInfo] = useState<Info>(snapshot);
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
-  const visible = open ?? uncontrolledVisible;
+  const openRef = useRef(open);
+  const onOpenChangeRef = useRef(onOpenChange);
+  openRef.current = open;
+  onOpenChangeRef.current = onOpenChange;
 
   const setVisible = useCallback(
     (next: SetStateAction<boolean>) => {
-      if (typeof next === "function") {
-        if (open === undefined) {
-          setUncontrolledVisible((current) => {
-            const resolved = next(current);
-            onOpenChange?.(resolved);
-            return resolved;
-          });
-        } else {
-          onOpenChange?.(next(open));
-        }
-        return;
-      }
-
-      if (open === undefined) {
-        setUncontrolledVisible(next);
-      }
-      onOpenChange?.(next);
+      const resolved = typeof next === "function" ? next(openRef.current) : next;
+      onOpenChangeRef.current(resolved);
     },
-    [onOpenChange, open],
+    [],
   );
 
-  const { metrics, metricsError, metricsLoading, refreshMetrics } = useDebugMetrics(visible, setExpandedEventId);
+  const { metrics, metricsError, metricsLoading, refreshMetrics } = useDebugMetrics(open, setExpandedEventId);
 
   useEffect(() => {
     const update = () => setInfo(snapshot());
@@ -88,7 +75,7 @@ export function DebugOverlay({ open, onOpenChange }: DebugOverlayProps = {}) {
     return () => window.removeEventListener("keydown", onKey);
   }, [setVisible]);
 
-  if (!visible) {
+  if (!open) {
     return (
       <div className="group fixed bottom-0 right-0 z-[9998] flex h-32 w-32 items-end justify-end p-4">
         <button
