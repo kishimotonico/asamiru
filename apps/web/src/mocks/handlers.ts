@@ -2,7 +2,6 @@ import { http, HttpResponse } from "msw";
 import type { CalendarEventsResponse, DisplayInfoResponse, RailDeparturesResponse } from "@asamiru/shared";
 import type { WatchedLine } from "@asamiru/shared";
 import { buildDemoCalendarEvents } from "../demo/calendarDemoData";
-import { buildDemoDebugMetrics } from "../demo/debugDemoData";
 import { buildDemoDepartures, buildDemoLineStatus } from "../demo/railDemoData";
 
 // ─── ハンドラー定義 ────────────────────────────────────────────────────────
@@ -53,8 +52,6 @@ export const handlers = [
     return HttpResponse.json(response);
   }),
 
-  // デバッグ計測: デモは API を持たないため架空メトリクスを返す
-  http.get("*/api/debug/metrics", () => {
-    return HttpResponse.json(buildDemoDebugMetrics());
-  }),
+  // デバッグ計測（/api/debug/metrics）はモックしない。デモでは取得失敗し
+  // パネルは NO DATA 表示になる（本番と同じ挙動。デモ専用分岐を増やさない）。
 ];

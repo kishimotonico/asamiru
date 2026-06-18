@@ -141,12 +141,6 @@ export function DebugOverlay({ open, onOpenChange }: DebugOverlayProps) {
       </div>
 
       <div className="max-h-[calc(88vh-73px)] overflow-y-auto p-5">
-        {metricsError ? (
-          <div className="mb-4 rounded-md border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-            metrics の取得に失敗しました。自動取得は再試行しません。必要なら Refresh を押してください。 {metricsError}
-          </div>
-        ) : null}
-
         <div className="grid gap-3 md:grid-cols-4">
           <SummaryTile title="Environment" value={`${info.w} x ${info.h}`} detail={`${breakpoint(info.w)} / DPR ${info.dpr.toFixed(1)} / scroll ${info.scrollY}`} />
           <SummaryTile title="Backend API" value={metrics?.totals.backendRequests ?? "-"} detail="backend request count" />
@@ -167,10 +161,16 @@ export function DebugOverlay({ open, onOpenChange }: DebugOverlayProps) {
           <div className="mt-5 rounded-lg border border-dashed border-white/15 px-5 py-10 text-center text-sm text-white/45">
             backend metrics を読み込んでいます...
           </div>
-        ) : metricsError ? null : (
+        ) : metricsError ? (
           <div className="mt-5 rounded-lg border border-dashed border-white/15 px-5 py-10 text-center">
-            <div className="text-base font-semibold">Backend metrics are not loaded</div>
-            <div className="mt-2 text-sm text-white/45">パネルを開いたタイミングで1回だけ自動取得します。再取得は Refresh を押してください。</div>
+            <div className="text-lg font-semibold tracking-[0.2em] text-white/55">NO DATA</div>
+            <div className="mt-2 text-sm text-white/40">backend metrics を取得できませんでした。Refresh で再取得できます。</div>
+            <div className="mt-1 text-xs text-white/25">{metricsError}</div>
+          </div>
+        ) : (
+          <div className="mt-5 rounded-lg border border-dashed border-white/15 px-5 py-10 text-center">
+            <div className="text-lg font-semibold tracking-[0.2em] text-white/55">NO DATA</div>
+            <div className="mt-2 text-sm text-white/40">パネルを開いたタイミングで1回だけ自動取得します。再取得は Refresh を押してください。</div>
           </div>
         )}
       </div>
