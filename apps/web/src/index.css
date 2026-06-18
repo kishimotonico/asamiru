@@ -72,6 +72,26 @@
   color-scheme: dark;
 }
 
+[data-theme="dawn"] {
+  --c-canvas: #fff4ea;
+  --c-surface: #fffaf5;
+  --c-surface-muted: #fdeede;
+  --c-ink: #3a2a22;
+  --c-ink-muted: #7a6253;
+  --c-ink-subtle: #b09a86;
+  --c-border: #f0e0cf;
+  --c-border-strong: #e2cdb6;
+  --c-danger: #c14b3a;
+  --c-danger-strong: #9a3d30;
+  --c-danger-soft: #fbeae2;
+  --c-success: #cfe0bf;
+  --c-shadow-card: 0 1px 0 rgba(120, 70, 30, 0.05), 0 6px 24px -16px rgba(120, 70, 30, 0.22);
+
+  --accent: #d98a4e;
+
+  color-scheme: light;
+}
+
 /* 京王ライナー・Mt.TAKAO号 種別バッジ（グラデーション） */
 .rail-badge--liner {
   background: linear-gradient(135deg, var(--c-rail-liner-from) 50%, var(--c-rail-liner-to) 50%);

@@ -36,9 +36,11 @@
 
 ## テーマ
 
-- 状態: `theme/themeAtom.ts`（jotai `atomWithStorage`、`"system" | "light" | "dark"`、初期値 `system`、localStorage 永続）
-- 反映: `theme/useApplyTheme.ts` を App でマウント。`system` の間は `prefers-color-scheme` を購読し、実効テーマを `document.documentElement.dataset.theme` に書く
-- 切替 UI: 右上オーバーレイの `theme/ThemeToggle.tsx`（実効テーマの逆を明示セット）と、設定モーダルの `settings/ThemeSettingsSection.tsx`（system/light/dark の3択）
+- 状態: `theme/themeAtom.ts`（jotai `atomWithStorage`、`"system" | "light" | "dark" | "dawn"`、初期値 `system`、localStorage 永続）。具体テーマ（light/dawn/dark）の順序とラベルは同ファイルの `CONCRETE_THEMES` に集約する
+- 反映: `theme/useApplyTheme.ts` を App でマウント。`system` は OS の `prefers-color-scheme`（light/dark のみ）を購読し、実効テーマを `document.documentElement.dataset.theme` に書く。`dawn` は明示選択専用で system からは解決されない
+- トークン定義: `index.css` の `:root` が light のデフォルト値（`[data-theme="light"]` ブロックは存在しない）。`[data-theme="dark"]` / `[data-theme="dawn"]` が CSS 変数を上書きする
+- `dawn`（朝焼け）は明るめの暖色トーン・コントラストを抑えたライト系テーマ
+- 切替 UI: 右上オーバーレイの `theme/ThemeToggle.tsx`（`CONCRETE_THEMES` の順で具体テーマを1つずつサイクル。light → 朝焼け → dark → light...）と、設定モーダルの `settings/ThemeSettingsSection.tsx`（OSに従う + `CONCRETE_THEMES` の4択）
 
 テーマに依存する分岐をコンポーネント側で書く必要は基本的にない（トークンが吸収する）。どうしても必要なら `useApplyTheme()` の戻り値（実効テーマ）を使う。
 

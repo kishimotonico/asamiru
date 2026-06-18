@@ -1,18 +1,14 @@
 import { useAtom } from "jotai";
-import { themeAtom, type ThemePreference } from "../theme/themeAtom";
+import { CONCRETE_THEMES, themeAtom, type ThemePreference } from "../theme/themeAtom";
 import { SettingField } from "./components/FormControls";
 
-const OPTIONS: ReadonlyArray<{ value: ThemePreference; label: string }> = [
-  { value: "system", label: "OSに従う" },
-  { value: "light", label: "ライト" },
-  { value: "dark", label: "ダーク" },
-];
+const OPTIONS: ReadonlyArray<{ value: ThemePreference; label: string }> = [{ value: "system", label: "OSに従う" }, ...CONCRETE_THEMES];
 
 export function ThemeSettingsSection() {
   const [theme, setTheme] = useAtom(themeAtom);
 
   return (
-    <SettingField label="テーマ" description="OSに従う場合はシステムのライト/ダーク設定に追従します。">
+    <SettingField label="テーマ" description="OSに従う場合はシステムのライト/ダーク設定に追従します（朝焼けは明示選択のみ）。">
       <div className="inline-flex rounded-md border border-border-strong p-0.5">
         {OPTIONS.map((opt) => {
           const active = theme === opt.value;

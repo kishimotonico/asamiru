@@ -10,8 +10,8 @@ function systemTheme(): EffectiveTheme {
 
 /**
  * テーマ設定を解決して `document.documentElement[data-theme]` に反映する。
- * `system` のときは OS 設定を購読し、変更に追従する。
- * 実効テーマ（light/dark）を返す。
+ * `system` のときは OS 設定（light/dark のみ）を購読し、変更に追従する。
+ * 実効テーマ（light/dawn/dark）を返す。
  */
 export function useApplyTheme(): EffectiveTheme {
   const preference = useAtomValue(themeAtom);
